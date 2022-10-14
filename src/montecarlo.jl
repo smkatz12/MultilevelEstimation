@@ -1,5 +1,6 @@
 # Vanilla Monte Carlo
 using GridInterpolations
+using ProgressBars
 
 mutable struct MonteCarloModel
     grid::RectangleGrid # Grid to evaluate on
@@ -11,7 +12,7 @@ function run_estimation!(model::MonteCarloModel, problem::GriddedProblem)
     nparams = length(model.grid)
 
     # Update pfail vector
-    for i = 1:nparams
+    for i in ProgressBar(1:nparams)
         params = ind2x(model.grid, i)
         res = problem.sim(params, model.nsamps)
         model.pfail[i] = sum(res) / nsamps
