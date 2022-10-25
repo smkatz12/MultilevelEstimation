@@ -17,7 +17,7 @@ function max_improvement_acquisition(model::BanditModel, pfail_threshold, conf_t
 
     for i = 1:length(model.grid)
         # Check if already safe
-        safe = cdf(Beta(α, β), pfail_threshold) > conf_threshold
+        safe = cdf(Beta(model.α[i], model.β[i]), pfail_threshold) > conf_threshold
         if !safe
             ei = expected_improvement(model.α[i], model.β[i], pfail_threshold)
             if ei > curr_best

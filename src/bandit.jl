@@ -1,6 +1,7 @@
 # Bandit model
 using GridInterpolations
 using Distributions
+using ProgressBars
 
 mutable struct BanditModel
     grid::RectangleGrid # Grid to evaluate on
@@ -16,13 +17,13 @@ function run_estimation!(model::BanditModel, problem::GriddedProblem, acquisitio
     for i in ProgressBar(1:nsamps)
         sample_ind = acquisition(model)
         params = ind2x(model.grid, sample_ind)
-        res = problem.sim(params, model.nsamps)
+        res = problem.sim(params, 1)
         nfail = sum(res)
 
 
         model.α[sample_ind] += nfail
         model.β[sample_ind] += 1 - nfail
-        model.pfail[sample_ind] = model.α[sample_ind] / model.β[sample_ind]
+        model.pfail[sample_ind] = model.α[sample_ind] / (model.α[sample_ind] + model.β[sample_ind])
 
         if (i % log_every) == 0
             estimate_from_counts!(problem, model)

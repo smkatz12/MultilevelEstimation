@@ -11,7 +11,6 @@ function pendulum_mc_model(nθ, nω, nsamps; σθ_max=0.3, σω_max=0.3)
     # Set up grid
     σθs = collect(range(0, stop=σθ_max, length=nθ))
     σωs = collect(range(0, stop=σω_max, length=nω))
-    grid_points = Dict(:σθs => σθs, :σωs => σωs)
     grid = RectangleGrid(σθs, σωs)
 
     return MonteCarloModel(grid, nsamps, zeros(length(grid)), ones(length(grid)), ones(length(grid)))
