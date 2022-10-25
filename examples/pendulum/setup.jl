@@ -4,7 +4,7 @@ include("controller.jl")
 include("../../src/multilevel_estimation.jl")
 
 # Problem
-function pendulum_problem(nθ, nω; σθ_max=0.3, σω_max=0.3, threshold=0.1, eps_len=100)
+function pendulum_problem(nθ, nω; σθ_max=0.3, σω_max=0.3, threshold=0.1, conf_threshold=0.9, eps_len=100)
     # Set up grid
     σθs = collect(range(0, stop=σθ_max, length=nθ))
     σωs = collect(range(0, stop=σω_max, length=nω))
@@ -31,5 +31,5 @@ function pendulum_problem(nθ, nω; σθ_max=0.3, σω_max=0.3, threshold=0.1, e
         return num_failures
     end
 
-    return GriddedProblem(grid_points, grid, sim, threshold, falses(length(grid)))
+    return GriddedProblem(grid_points, grid, sim, threshold, conf_threshold, falses(length(grid)))
 end
