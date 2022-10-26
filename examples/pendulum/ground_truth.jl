@@ -21,6 +21,7 @@ end
 # σθ_max = 0.2
 # σω_max = 1.0
 # nsamps = 10000
+
 # problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
 # model = pendulum_mc_model(nθ, nω, nsamps, σθ_max=σθ_max, σω_max=σω_max)
 
@@ -28,7 +29,7 @@ end
 
 # @save "results/ground_truth.bson" model
 
-# model = BSON.load("examples/pendulum/results/ground_truth_0p2.bson")[:model]
+# model = BSON.load("examples/pendulum/results/ground_truth.bson")[:model]
 # problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
 
 # pfail(model, params) = interpolate(model.grid, model.pfail, params)
