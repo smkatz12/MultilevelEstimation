@@ -17,6 +17,7 @@ end
 function run_estimation!(model::KernelBanditModel, problem::GriddedProblem, acquisition, nsamps;
     log_every=Inf)
     set_sizes = [0]
+    K_prob = get_K(problem.grid, model.grid, model.kernel)
 
     for i in ProgressBar(1:nsamps)
         sample_ind = acquisition(model)
@@ -27,10 +28,9 @@ function run_estimation!(model::KernelBanditModel, problem::GriddedProblem, acqu
 
         model.α[sample_ind] += nfail
         model.β[sample_ind] += 1 - nfail
-        model.pfail[sample_ind] = model.α[sample_ind] / (model.α[sample_ind] + model.β[sample_ind])
 
         if (i % log_every) == 0
-            estimate_from_counts!(problem, model)
+            estimate_from_est_counts!(problem, model, K_prob)
             push!(set_sizes, sum(problem.is_safe))
         end
     end
@@ -49,10 +49,14 @@ end
 
 function estimate_from_est_counts!(problem::GriddedProblem, model::KernelBanditModel)
     K = get_K(problem.grid, model.grid, model.kernel)
-    α_est = K * model.α
-    β_est = K * model.β
+    estimate_from_est_counts!(problem, model, K)
+end
+
+function estimate_from_est_counts!(problem::GriddedProblem, model::KernelBanditModel, K)
+    α_est = K * model.α .+ 1.0
+    β_est = K * model.β .+ 1.0
 
     for i = 1:length(problem.grid)
-        problem.is_safe[i] = cdf(Beta(α_est[i], β_est[i]), problem.pfail_threshold) > problem.conf_t
+        problem.is_safe[i] = cdf(Beta(α_est[i], β_est[i]), problem.pfail_threshold) > problem.conf_threshold
     end
 end

@@ -30,7 +30,7 @@ function max_improvement_acquisition(model::BanditModel, pfail_threshold, conf_t
     return curr_ind
 end
 
-function kernel_max_improvement_acquisition(model::KernelBanditModel)
+function kernel_max_improvement_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold)
     α_est = model.K * model.α
     β_est = model.K * model.β
 
@@ -39,9 +39,9 @@ function kernel_max_improvement_acquisition(model::KernelBanditModel)
 
     for i = 1:length(model.grid)
         # Check if already safe
-        safe = cdf(Beta(α_est, β_est), pfail_threshold) > conf_threshold
+        safe = cdf(Beta(α_est[i], β_est[i]), pfail_threshold) > conf_threshold
         if !safe
-            ei = expected_improvement(α_est, β_est, pfail_threshold)
+            ei = expected_improvement(α_est[i], β_est[i], pfail_threshold)
             if ei > curr_best
                 curr_best = ei
                 curr_ind = i
