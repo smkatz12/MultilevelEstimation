@@ -1,7 +1,7 @@
 # Acquisition functions for bandit algorithms
 using Distributions
 
-function random_acquisition(model::Union{BanditModel, KernelBanditModel})
+function random_acquisition(model::Union{BanditModel, KernelBanditModel, GaussianProcessModel})
     return rand(1:length(model.grid))
 end
 
