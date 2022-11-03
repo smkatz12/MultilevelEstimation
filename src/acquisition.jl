@@ -51,3 +51,79 @@ function kernel_max_improvement_acquisition(model::KernelBanditModel, pfail_thre
 
     return curr_ind
 end
+
+function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
+    β = quantile(Normal(), conf_threshold)
+
+    neval = length(model.X)
+    npred = length(model.X_pred)
+
+    max_ind_pred = 0
+    max_pred = 0
+    max_ind_eval = 0
+    max_eval = 0
+    
+    if neval > 0
+        if npred > 0
+            objecs_pred = zeros(npred)
+            μ, σ² = predict(model)
+            for i = 1:npred
+                x⁺ = model.X_pred[i]
+                for j = 1:npred
+                    x = model.X_pred[j]
+                    z = √(σ²[i] + model.ν) / model.k(x⁺, x) * (pfail_threshold - μ[j] - β * √(σ²[i]))
+                    objecs_pred[i] += cdf(Normal(), z)
+                end
+            end
+        end
+        max_ind_pred = argmax(objecs_pred)
+        max_pred = maximum(objecs_pred)
+
+        objecs_eval = zeros(neval)
+        μ, σ² = predict(model, model.X)
+        for i = 1:neval
+            x⁺ = model.X[i]
+            for j = 1:npred
+                x = model.X[j]
+                z = √(σ²[i] + model.ν) / model.k(x⁺, x) * (pfail_threshold - μ[j] - β * √(σ²[i]))
+                objecs_eval[i] += cdf(Normal(), z)
+            end
+        end
+        max_ind_eval = argmax(objecs_eval)
+        max_eval = maximum(objecs_eval)
+
+        if max_pred > max_eval
+            return max_pred, model.X_pred_inds[max_ind_pred]
+        else
+            return max_eval, model.X_inds[max_ind_eval]
+        end
+
+    else
+        return rand(1:length(model.grid))
+    end
+end
+
+function MILE_acquisition(model::GaussianProcessModel, pfail_threshold, conf_threshold)
+    _, ind = MILE(model, pfail_threshold, conf_threshold)
+    return ind
+end
+
+function RMILE_acquisition(model::GaussianProcessModel, pfail_threshold, conf_threshold; γ=1e-5)
+    new_size, ind = MILE(model, pfail_threshold, conf_threshold)
+    old_size = safe_set_size(model, pfail_threshold, conf_threshold)
+
+    _, σ²_pred = predict(model)
+    max_pred = maximum(σ²_pred)
+    _, σ²_eval = predict(model, model.X)
+    max_eval = maximum(σ²_eval)
+
+    if γ * max(max_pred, max_eval) > new_size - old_size
+        if max_pred > max_eval
+            return model.X_pred_inds[argmax(σ²_pred)]
+        else
+            return model.X_inds[argmax(σ²_eval)]
+        end
+    else
+        return ind
+    end
+end

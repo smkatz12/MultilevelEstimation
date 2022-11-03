@@ -75,10 +75,26 @@ function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, a
 end
 
 function estimate_from_gp!(problem::GriddedProblem, model::GaussianProcessModel)
+    β = quantile(Normal(), problem.conf_threshold)
+    
     X_pred = [X for X in problem.grid]
     μ, σ² = predict(model, X_pred)
 
     for i = 1:length(problem.grid)
-        problem.is_safe[i] = cdf(Normal(μ[i], √(σ²[i])), problem.pfail_threshold) > problem.conf_threshold
+        problem.is_safe[i] = μ[i] + β * √(σ²[i]) < problem.pfail_threshold
     end
+end
+
+function safe_set_size(model::GaussianProcessModel, pfail_threshold, conf_threshold)
+    β = quantile(Normal(), conf_threshold)
+
+    X_pred = [X for X in model.grid]
+    μ, σ² = predict(model, X_pred)
+
+    is_safe = falses(length(model.grid))
+    for i = 1:length(model.grid)
+        is_safe[i] = μ[i] + β * √(σ²[i]) < pfail_threshold
+    end
+
+    return sum(is_safe)
 end
