@@ -21,7 +21,7 @@ mutable struct GaussianProcessModel
     β::Vector # Success counts
     function GaussianProcessModel(grid, nsamps, m, k, ν)
         N = length(grid)
-        X_pred = [X for X in model.grid]
+        X_pred = [X for X in grid]
         X_pred_inds = collect(1:N)
         return new(grid, nsamps, m, k, ν, [], [], [], X_pred, X_pred_inds, ones(N), ones(N))
     end
@@ -32,9 +32,9 @@ function predict(GP::GaussianProcessModel)
 end
 
 function predict(GP::GaussianProcessModel, X_pred)
-    tmp = get_K(X_pred, GP.X, GP.k) / (get_K(GP.X, GP.X, GP.k) + ν * I)
-    μ = GP.m(X_pred) + tmp * (GP.y - m(X))
-    S = get_K(X_pred, X_pred, GP.k) - tmp * get_K(GP.X, X_pred, k)
+    tmp = get_K(X_pred, GP.X, GP.k) / (get_K(GP.X, GP.X, GP.k) + GP.ν * I)
+    μ = GP.m(X_pred) + tmp * (GP.y - GP.m(GP.X))
+    S = get_K(X_pred, X_pred, GP.k) - tmp * get_K(GP.X, X_pred, GP.k)
     σ² = diag(S) .+ eps()
     return μ, σ²
 end
@@ -53,7 +53,8 @@ function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, a
 
         # Evaluate
         res = problem.sim(params, model.nsamps)
-        pfail = sum(res) / model.nsamps
+        nfail = sum(res)
+        pfail = nfail / model.nsamps
 
         # Log
         push!(model.X, params)
