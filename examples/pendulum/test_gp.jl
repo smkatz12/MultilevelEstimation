@@ -45,7 +45,7 @@ p = plot(collect(0:nsamps:nsamps_tot), set_sizes_random, label="random", legend=
 nsamps = 500
 nsamps_tot = 10000
 model_MILE = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps)
-MILE_acquisition(model) = MILE_acquisition((model, problem.pfail_threshold, problem.conf_threshold))
+MILE_acquisition(model) = MILE_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot, log_every=1)
 
 # Timing analysis

@@ -79,7 +79,7 @@ function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, a
 
     for i in ProgressBar(1:neval)
         # Select next point
-        println("calling aq")
+        # println("calling aq")
         sample_ind = acquisition(model)
         params = ind2x(model.grid, sample_ind)
 

@@ -56,7 +56,7 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
     β = quantile(Normal(), conf_threshold)
 
     neval = length(model.X)
-    println("neval: ", neval)
+    # println("neval: ", neval)
     npred = length(model.X_pred)
 
     max_ind_pred = 0
@@ -68,7 +68,7 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         if npred > 0
             objecs_pred = zeros(npred)
             μ, σ² = predict(model)
-            for i = 1:npred
+            for i = ProgressBar(1:npred)
                 # x⁺ = model.X_pred[i]
                 # println(i)
                 for j = 1:npred
@@ -102,7 +102,7 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         end
 
     else
-        return rand(1:length(model.grid))
+        return 0.0, rand(1:length(model.grid))
     end
 end
 
