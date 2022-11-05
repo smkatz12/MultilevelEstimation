@@ -56,6 +56,7 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
     β = quantile(Normal(), conf_threshold)
 
     neval = length(model.X)
+    println("neval: ", neval)
     npred = length(model.X_pred)
 
     max_ind_pred = 0
@@ -68,10 +69,12 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
             objecs_pred = zeros(npred)
             μ, σ² = predict(model)
             for i = 1:npred
-                x⁺ = model.X_pred[i]
+                # x⁺ = model.X_pred[i]
+                # println(i)
                 for j = 1:npred
-                    x = model.X_pred[j]
-                    z = √(σ²[i] + model.ν) / model.k(x⁺, x) * (pfail_threshold - μ[j] - β * √(σ²[i]))
+                    # println(j)
+                    #x = model.X_pred[j]
+                    z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[i]))
                     objecs_pred[i] += cdf(Normal(), z)
                 end
             end
@@ -80,12 +83,12 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         max_pred = maximum(objecs_pred)
 
         objecs_eval = zeros(neval)
-        μ, σ² = predict(model, model.X)
+        μ, σ² = predict(model, model.X, model.X_inds, model.K)
         for i = 1:neval
-            x⁺ = model.X[i]
+            # x⁺ = model.X[i]
             for j = 1:npred
-                x = model.X[j]
-                z = √(σ²[i] + model.ν) / model.k(x⁺, x) * (pfail_threshold - μ[j] - β * √(σ²[i]))
+                # x = model.X[j]
+                z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[i]))
                 objecs_eval[i] += cdf(Normal(), z)
             end
         end
@@ -114,7 +117,7 @@ function RMILE_acquisition(model::GaussianProcessModel, pfail_threshold, conf_th
 
     _, σ²_pred = predict(model)
     max_pred = maximum(σ²_pred)
-    _, σ²_eval = predict(model, model.X)
+    _, σ²_eval = predict(model, model.X, model.X_inds, model.K)
     max_eval = maximum(σ²_eval)
 
     if γ * max(max_pred, max_eval) > new_size - old_size
