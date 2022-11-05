@@ -86,7 +86,7 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         μ, σ² = predict(model, model.X, model.X_inds, model.K)
         for i = 1:neval
             # x⁺ = model.X[i]
-            for j = 1:npred
+            for j = 1:neval
                 # x = model.X[j]
                 z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[i]))
                 objecs_eval[i] += cdf(Normal(), z)
