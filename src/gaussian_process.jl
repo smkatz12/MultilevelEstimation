@@ -47,7 +47,7 @@ function predict(GP::GaussianProcessModel, X_pred, X_pred_inds, K)
     # println("l3: ", time() - start)
 
     # start = time()
-    σ² = 1.0 .- dot.(eachrow(tmp), eachcol(K[GP.X_inds, X_pred_inds]))
+    σ² = 1.0 .- dot.(eachrow(tmp), eachcol(K[GP.X_inds, X_pred_inds])) .+ eps()
     # println("l4: ", time() - start)
 
     return μ, σ²

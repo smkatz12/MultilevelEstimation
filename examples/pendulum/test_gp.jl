@@ -39,7 +39,7 @@ nsamps_tot = 10000
 model_random = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps)
 set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps_tot, log_every=1)
 
-p = plot(collect(0:nsamps:nsamps_tot), set_sizes_random, label="random", legend=:topleft)
+# p = plot(collect(0:nsamps:nsamps_tot), set_sizes_random, label="random", legend=:topleft)
 
 # MILE acquisition
 nsamps = 500
@@ -48,5 +48,15 @@ model_MILE = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, n
 MILE_acquisition(model) = MILE_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot, log_every=1)
 
-# Timing analysis
-@time predict(model_random)
+# # Comparing faster predict method
+# @time μ, σ² = predict(model_MILE)
+# @time μ_old, σ²_old = predict_old(model_MILE, model_MILE.X_pred, model_MILE.X_pred_inds, model_MILE.K)
+
+# sum(any.(σ²_old .!= σ²))
+# maximum(abs.(σ²_old .- σ²))
+# maximum(σ²)
+
+
+# # Timing analysis
+# @time predict(model_random)
+# @time res = MILE_acquisition(model_MILE)

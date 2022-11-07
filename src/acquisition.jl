@@ -68,15 +68,24 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         if npred > 0
             objecs_pred = zeros(npred)
             μ, σ² = predict(model)
-            for i = ProgressBar(1:npred)
+            for i = 1:npred
+                x⁺ind = model.X_pred_inds[i]
                 # x⁺ = model.X_pred[i]
                 # println(i)
-                for j = 1:npred
-                    # println(j)
-                    #x = model.X_pred[j]
-                    z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[i]))
-                    objecs_pred[i] += cdf(Normal(), z)
-                end
+                # for j = 1:npred
+                #     # println(j)
+                #     #x = model.X_pred[j]
+                #     # z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[j]))
+                #     # objecs_pred[i] += cdf(Normal(), z)
+                #     σGP⁺ = 
+                #     zvec = (√(σ²[i] + model.ν) ./ model.K[:, i]) .* (pfail_threshold - μ)
+                # end
+                σ²GP⁺ = σ² .- (model.K[model.X_pred_inds, x⁺ind] .^ 2) ./ (σ²[i] + model.ν)
+                # println(size(σ²GP⁺))
+                zvec = (√(σ²[i] + model.ν) ./ model.K[model.X_pred_inds, x⁺ind]) .* (pfail_threshold .- μ .- β .* σ²GP⁺)
+                # println(size(zvec))
+                objecs_pred[i] = sum(cdf(Normal(), zvec))
+                # println()
             end
         end
         max_ind_pred = argmax(objecs_pred)
@@ -85,12 +94,19 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         objecs_eval = zeros(neval)
         μ, σ² = predict(model, model.X, model.X_inds, model.K)
         for i = 1:neval
-            # x⁺ = model.X[i]
-            for j = 1:neval
-                # x = model.X[j]
-                z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[i]))
-                objecs_eval[i] += cdf(Normal(), z)
-            end
+            # # x⁺ = model.X[i]
+            # for j = 1:neval
+            #     # x = model.X[j]
+            #     z = √(σ²[i] + model.ν) / model.K[i, j] * (pfail_threshold - μ[j] - β * √(σ²[j]))
+            #     objecs_eval[i] += cdf(Normal(), z)
+            # end
+            x⁺ind = model.X_inds[i]
+            σ²GP⁺ = σ² .- (model.K[model.X_inds, x⁺ind] .^ 2) ./ (σ²[i] + model.ν)
+            # println(size(σ²GP⁺))
+            zvec = (√(σ²[i] + model.ν) ./ model.K[model.X_inds, x⁺ind]) .* (pfail_threshold .- μ .- β .* σ²GP⁺)
+            # println(size(zvec))
+            objecs_eval[i] = sum(cdf(Normal(), zvec))
+            # println()
         end
         max_ind_eval = argmax(objecs_eval)
         max_eval = maximum(objecs_eval)
@@ -98,6 +114,7 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
         if max_pred > max_eval
             return max_pred, model.X_pred_inds[max_ind_pred]
         else
+            println("Picked an already evaluated point!")
             return max_eval, model.X_inds[max_ind_eval]
         end
 
