@@ -12,10 +12,7 @@ mycmap_small = ColorScheme([RGB{Float64}(0.25, 1.5 * 0.25, 2.0 * 0.25),
 
 include("../../src/multilevel_estimation.jl")
 include("../../src/montecarlo.jl")
-include("../../src/bandit.jl")
-include("../../src/kernel_bandit.jl")
 include("../../src/gaussian_process.jl")
-include("../../src/acquisition.jl")
 include("controller.jl")
 include("setup.jl")
 

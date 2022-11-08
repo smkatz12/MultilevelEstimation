@@ -13,21 +13,21 @@ function pendulum_mc_model(nθ, nω, nsamps; σθ_max=0.3, σω_max=0.3)
     σωs = collect(range(0, stop=σω_max, length=nω))
     grid = RectangleGrid(σθs, σωs)
 
-    return MonteCarloModel(grid, nsamps, zeros(length(grid)), ones(length(grid)), ones(length(grid)))
+    return MonteCarloModel(grid, nsamps)
 end
 
-# nθ = 100
-# nω = 100
-# σθ_max = 0.2
-# σω_max = 1.0
-# nsamps = 10000
+nθ = 101
+nω = 101
+σθ_max = 0.2
+σω_max = 1.0
+nsamps = 10000
 
-# problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
-# model = pendulum_mc_model(nθ, nω, nsamps, σθ_max=σθ_max, σω_max=σω_max)
+problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+model = pendulum_mc_model(nθ, nω, nsamps, σθ_max=σθ_max, σω_max=σω_max)
 
-# @time run_estimation!(model, problem)
+@time run_estimation!(model, problem, mc_acquisition, nsamps * length(model.grid))
 
-# @save "results/ground_truth.bson" model
+@save "results/ground_truth.bson" model
 
 # model = BSON.load("examples/pendulum/results/ground_truth.bson")[:model]
 # problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
