@@ -221,7 +221,7 @@ problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, conf_
 nsamps = 500
 nsamps_tot = 50000
 model_random = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps, ℓ=1e-2)
-set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps_tot, log_every=1)
+set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps_tot)
 
 p = plot_eval_points(model_random)
 p = plot_predictions(model_random)
@@ -235,7 +235,7 @@ nsamps_tot = 50000
 model_MILE = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps, ℓ=1e-2)
 MILE_acquisition(model) = MILE_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 reset!(model_MILE)
-set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot, log_every=1)
+set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot)
 
 plot!(p, collect(0:nsamps:nsamps_tot), set_sizes_MILE, label="MILE", legend=:topleft, linetype=:steppre,
     xlabel="Number of Episodes", ylabel="Safe Set Size")

@@ -75,11 +75,9 @@ function predict_cov(GP::GaussianProcessModel, X_pred, X_pred_inds, K)
     return μ, S
 end
 
-function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, acquisition, nsamps;
-    log_every=Inf)
+function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, acquisition, nsamps)
 
     set_sizes = [0]
-
     neval = convert(Int64, floor(nsamps / model.nsamps))
 
     for i in ProgressBar(1:neval)
@@ -89,26 +87,30 @@ function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, a
 
         # Evaluate
         res = problem.sim(params, model.nsamps)
-        nfail = sum(res)
-        pfail = nfail / model.nsamps
+        
+        # Log internally
+        log!(model, sample_ind, res)
 
-        # Log
-        push!(model.X, params)
-        push!(model.X_inds, sample_ind)
-        push!(model.y, pfail)
-        deleteat!(model.X_pred_inds, findall(x -> x == params, model.X_pred))
-        deleteat!(model.X_pred, findall(x -> x == params, model.X_pred))
-
-        model.α[sample_ind] += nfail
-        model.β[sample_ind] += 1 - nfail
-
-        if (i % log_every) == 0
-            sz = safe_set_size(model, problem.pfail_threshold, problem.conf_threshold)
-            push!(set_sizes, sz)
-        end
+        # Log safe set size
+        sz = safe_set_size(model, problem.pfail_threshold, problem.conf_threshold)
+        push!(set_sizes, sz)
     end
 
     return set_sizes
+end
+
+function log!(model::GaussianProcessModel, sample_ind, res)
+    nfail = sum(res)
+    pfail = nfail / model.nsamps    
+
+    push!(model.X, params)
+    push!(model.X_inds, sample_ind)
+    push!(model.y, pfail)
+    deleteat!(model.X_pred_inds, findall(x -> x == params, model.X_pred))
+    deleteat!(model.X_pred, findall(x -> x == params, model.X_pred))
+
+    model.α[sample_ind] += nfail
+    model.β[sample_ind] += 1 - nfail
 end
 
 function estimate_from_gp!(problem::GriddedProblem, model::GaussianProcessModel)
@@ -128,10 +130,7 @@ function safe_set_size(model::GaussianProcessModel, pfail_threshold, conf_thresh
     X_pred = [X for X in model.grid]
     μ, σ² = predict(model, X_pred, collect(1:length(model.grid)), model.K)
 
-    is_safe = falses(length(model.grid))
-    for i = 1:length(model.grid)
-        is_safe[i] = μ[i] + β * √(σ²[i]) < pfail_threshold
-    end
+    is_safe = (μ .+ β .* sqrt.(σ²)) .< pfail_threshold
 
     return sum(is_safe)
 end
