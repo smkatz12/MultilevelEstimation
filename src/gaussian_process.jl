@@ -45,50 +45,13 @@ function predict(GP::GaussianProcessModel)
 end
 
 function predict(GP::GaussianProcessModel, X_pred, X_pred_inds, K)
-    # start = time()
-    tmp = K[X_pred_inds, GP.X_inds] / (K[GP.X_inds, GP.X_inds] + GP.ν * I)
-    # println("l1: ", time() - start)
-
-    # start = time()
-    μ = GP.m(X_pred) + tmp * (GP.y - GP.m(GP.X))
-    # println("l2: ", time() - start)
-
-    # start = time()
-    # # σ² = 1.0 .- diag(tmp * K[GP.X_inds, X_pred_inds])
-    # println("l3: ", time() - start)
-
-    # start = time()
-    σ² = 1.0 .- dot.(eachrow(tmp), eachcol(K[GP.X_inds, X_pred_inds])) .+ eps()
-    # println("l4: ", time() - start)
-
-    return μ, σ²
+    return predict(GP, GP.X, GP.X_inds, GP.y, X_pred, X_pred_inds, K)
 end
 
 function predict(GP::GaussianProcessModel, X, X_inds, y, X_pred, X_pred_inds, K)
-    # start = time()
     tmp = K[X_pred_inds, X_inds] / (K[X_inds, X_inds] + GP.ν * I)
-    # println("l1: ", time() - start)
-
-    # start = time()
     μ = GP.m(X_pred) + tmp * (y - GP.m(X))
-    # println("l2: ", time() - start)
-
-    # start = time()
-    # # σ² = 1.0 .- diag(tmp * K[GP.X_inds, X_pred_inds])
-    # println("l3: ", time() - start)
-
-    # start = time()
     σ² = 1.0 .- dot.(eachrow(tmp), eachcol(K[X_inds, X_pred_inds])) .+ eps()
-    # println("l4: ", time() - start)
-
-    return μ, σ²
-end
-
-function predict_old(GP::GaussianProcessModel, X_pred, X_pred_inds, K)
-    tmp = K[X_pred_inds, GP.X_inds] / (K[GP.X_inds, GP.X_inds] + GP.ν * I)
-    μ = GP.m(X_pred) + tmp * (GP.y - GP.m(GP.X))
-    S = K[X_pred_inds, X_pred_inds] - tmp * K[GP.X_inds, X_pred_inds]
-    σ² = diag(S) .+ eps()
     return μ, σ²
 end
 
@@ -106,22 +69,9 @@ function predict_cov(GP::GaussianProcessModel)
 end
 
 function predict_cov(GP::GaussianProcessModel, X_pred, X_pred_inds, K)
-    # start = time()
     tmp = K[X_pred_inds, GP.X_inds] / (K[GP.X_inds, GP.X_inds] + GP.ν * I)
-    # println("l1: ", time() - start)
-
-    # start = time()
     μ = GP.m(X_pred) + tmp * (GP.y - GP.m(GP.X))
-    # println("l2: ", time() - start)
-
-    # start = time()
-    # # σ² = 1.0 .- diag(tmp * K[GP.X_inds, X_pred_inds])
-    # println("l3: ", time() - start)
-
-    # start = time()
     S = GP.K[X_pred_inds, X_pred_inds] - tmp * GP.K[GP.X_inds, X_pred_inds]
-    # println("l4: ", time() - start)
-
     return μ, S
 end
 
@@ -134,7 +84,6 @@ function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, a
 
     for i in ProgressBar(1:neval)
         # Select next point
-        # println("calling aq")
         sample_ind = acquisition(model)
         params = ind2x(model.grid, sample_ind)
 
@@ -156,8 +105,6 @@ function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, a
         if (i % log_every) == 0
             sz = safe_set_size(model, problem.pfail_threshold, problem.conf_threshold)
             push!(set_sizes, sz)
-            # estimate_from_gp!(problem, model)
-            # push!(set_sizes, sum(problem.is_safe))
         end
     end
 
