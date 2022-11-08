@@ -27,6 +27,47 @@ function pendulum_gp_model(nθ, nω; σθ_max=0.2, σω_max=1.0,
     return GaussianProcessModel(grid, nsamps, m, k, ν)
 end
 
+# Plot where evaluated
+function plot_eval_points(model::GaussianProcessModel)
+    xs = [pt[1] for pt in model.grid]
+    ys = [pt[2] for pt in model.grid]
+    p = scatter(xs, ys, legend=false,
+        markersize=0.5, markercolor=:black, markerstrokecolor=:black)
+
+    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds]
+    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds]
+    scatter!(p, xs_eval, ys_eval,
+        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω")
+    return p
+end
+
+function to_heatmap(grid::RectangleGrid, vals; kwargs...)
+    vals_mat = reshape(vals, length(grid.cutPoints[1]), length(grid.cutPoints[2]))
+    return heatmap(grid.cutPoints[1], grid.cutPoints[2], vals_mat'; kwargs...)
+end
+
+# Plot predicted pfail mean and cov
+function plot_predictions(model::GaussianProcessModel)
+    all_X = [X for X in model.grid]
+    all_inds = collect(1:length(model.grid))
+    μ, σ² = predict(model, all_X, all_inds, model.K)
+
+    p1 = to_heatmap(model.grid, μ, title="μ", xlabel="σθ", ylabel="σω")
+    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds]
+    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds]
+    scatter!(p1, xs_eval, ys_eval,
+        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    p2 = to_heatmap(model.grid, sqrt.(σ²), title="σ", xlabel="σθ", ylabel="σω")
+    scatter!(p2, xs_eval, ys_eval,
+        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    return plot(p1, p2, size=(1000, 400))
+end
+
 function plot_test_stats(model::GaussianProcessModel, conf_threshold)
     β = quantile(Normal(), conf_threshold)
 
@@ -43,6 +84,55 @@ function plot_test_stats(model::GaussianProcessModel, conf_threshold)
 
     return p1
 end
+
+function plot_summary(model::GaussianProcessModel, problem::GriddedProblem, iter)
+    all_X = [X for X in model.grid]
+    all_inds = collect(1:length(model.grid))
+    μ, σ² = predict(model, model.X[1:iter], model.X_inds[1:iter], model.y[1:iter], all_X, all_inds, model.K)
+
+    p1 = to_heatmap(model.grid, μ, title="μ", xlabel="σθ", ylabel="σω")
+    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds[1:iter]]
+    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds[1:iter]]
+    scatter!(p1, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    p2 = to_heatmap(model.grid, sqrt.(σ²), title="σ", xlabel="σθ", ylabel="σω")
+    scatter!(p2, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    β = quantile(Normal(), problem.conf_threshold)
+
+    p3 = to_heatmap(model.grid, μ .+ β .* sqrt.(σ²), title="Test Statistic", xlabel="σθ", ylabel="σω")
+    scatter!(p3, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    is_safe = (μ .+ β .* sqrt.(σ²)) .< problem.pfail_threshold
+    p4 = to_heatmap(model.grid, is_safe, title="Estimated Safe Set", xlabel="σθ", ylabel="σω")
+    scatter!(p4, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    return plot(p1, p2, p3, p4)
+end
+
+function plot_summary(model::GaussianProcessModel, problem::GriddedProblem)
+    return plot_summary(model, problem, length(model.X))
+end
+
+plot_summary(model_MILE, problem, 0)
+
+anim = @animate for iter in 1:length(model_MILE.X)
+    plot_summary(model_MILE, problem, iter)
+end
+Plots.gif(anim, "figs/MILE_example.gif", fps=10)
+
+anim = @animate for iter in 1:length(model_MILE.X)
+    plot_summary(model_random, problem, iter)
+end
+Plots.gif(anim, "figs/random_GP_example.gif", fps=10)
 
 # Set up the problem
 nθ = 101
@@ -75,92 +165,92 @@ reset!(model_MILE)
 set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot, log_every=1)
 
 plot!(p, collect(0:nsamps:nsamps_tot), set_sizes_MILE, label="MILE", legend=:topleft, linetype=:steppre,
-      xlabel="Number of Episodes", ylabel="Safe Set Size")
+    xlabel="Number of Episodes", ylabel="Safe Set Size")
 
 p = plot_eval_points(model_MILE)
 p = plot_predictions(model_MILE)
 p = plot_test_stats(model_MILE, 0.95)
 
-# Debugging MILE
-res, objecs = MILE_acquisition(model_MILE)
-xs = [pt[1] for pt in model_MILE.X_pred]
-ys = [pt[2] for pt in model_MILE.X_pred]
-scatter(xs, ys, zcolor=objecs, markerstrokewidth=0)#, xlims=(0.0, 0.01), ylims=(0.0, 0.05))
+# # Debugging MILE
+# res, objecs = MILE_acquisition(model_MILE)
+# xs = [pt[1] for pt in model_MILE.X_pred]
+# ys = [pt[2] for pt in model_MILE.X_pred]
+# scatter(xs, ys, zcolor=objecs, markerstrokewidth=0)#, xlims=(0.0, 0.01), ylims=(0.0, 0.05))
 
-unique(max.(objecs, 1e-2))
+# unique(max.(objecs, 1e-2))
 
 
-# Plot where evaluated
-function plot_eval_points(model::GaussianProcessModel)
-    xs = [pt[1] for pt in model.grid]
-    ys = [pt[2] for pt in model.grid]
-    p = scatter(xs, ys, legend=false,
-        markersize=0.5, markercolor=:black, markerstrokecolor=:black)
+# # Plot where evaluated
+# function plot_eval_points(model::GaussianProcessModel)
+#     xs = [pt[1] for pt in model.grid]
+#     ys = [pt[2] for pt in model.grid]
+#     p = scatter(xs, ys, legend=false,
+#         markersize=0.5, markercolor=:black, markerstrokecolor=:black)
 
-    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds]
-    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds]
-    scatter!(p, xs_eval, ys_eval,
-        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
-        xlabel="σθ", ylabel="σω")
-    return p
-end
+#     xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds]
+#     ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds]
+#     scatter!(p, xs_eval, ys_eval,
+#         markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+#         xlabel="σθ", ylabel="σω")
+#     return p
+# end
 
-p = plot_eval_points(model_MILE)
-p = plot_eval_points(model_random)
+# p = plot_eval_points(model_MILE)
+# p = plot_eval_points(model_random)
 
-function to_heatmap(grid::RectangleGrid, vals; kwargs...)
-    vals_mat = reshape(vals, length(grid.cutPoints[1]), length(grid.cutPoints[2]))
-    return heatmap(grid.cutPoints[1], grid.cutPoints[2], vals_mat'; kwargs...)
-end
+# function to_heatmap(grid::RectangleGrid, vals; kwargs...)
+#     vals_mat = reshape(vals, length(grid.cutPoints[1]), length(grid.cutPoints[2]))
+#     return heatmap(grid.cutPoints[1], grid.cutPoints[2], vals_mat'; kwargs...)
+# end
 
-# Plot predicted pfail mean and cov
-function plot_predictions(model::GaussianProcessModel)
-    all_X = [X for X in model.grid]
-    all_inds = collect(1:length(model.grid))
-    μ, σ² = predict(model, all_X, all_inds, model.K)
+# # Plot predicted pfail mean and cov
+# function plot_predictions(model::GaussianProcessModel)
+#     all_X = [X for X in model.grid]
+#     all_inds = collect(1:length(model.grid))
+#     μ, σ² = predict(model, all_X, all_inds, model.K)
 
-    p1 = to_heatmap(model.grid, μ, title="μ", xlabel="σθ", ylabel="σω")
-    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds]
-    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds]
-    scatter!(p1, xs_eval, ys_eval,
-        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
-        xlabel="σθ", ylabel="σω", legend=false)
+#     p1 = to_heatmap(model.grid, μ, title="μ", xlabel="σθ", ylabel="σω")
+#     xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds]
+#     ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds]
+#     scatter!(p1, xs_eval, ys_eval,
+#         markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+#         xlabel="σθ", ylabel="σω", legend=false)
 
-    p2 = to_heatmap(model.grid, sqrt.(σ²), title="σ", xlabel="σθ", ylabel="σω")
-    scatter!(p2, xs_eval, ys_eval,
-        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
-        xlabel="σθ", ylabel="σω", legend=false)
+#     p2 = to_heatmap(model.grid, sqrt.(σ²), title="σ", xlabel="σθ", ylabel="σω")
+#     scatter!(p2, xs_eval, ys_eval,
+#         markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+#         xlabel="σθ", ylabel="σω", legend=false)
 
-    return plot(p1, p2, size=(1000, 400))
-end
+#     return plot(p1, p2, size=(1000, 400))
+# end
 
-p = plot_predictions(model_MILE)
-p = plot_predictions(model_random)
+# p = plot_predictions(model_MILE)
+# p = plot_predictions(model_random)
 
-# Construct model to play around with length parameter
-m = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps)
-nθ_pred = 11
-nω_pred = 11
-θs = collect(range(0, stop=σθ_max, length=nθ_pred))
-ωs = collect(range(0, stop=σω_max, length=nω_pred))
-m.X = [[θs[i], ωs[j]] for i = 1:nθ_pred for j = 1:nω_pred]
-m.X_inds = [interpolants(m.grid, m.X[i])[1][1] for i = 1:length(m.X)]
-m.y = ones(length(m.X))
+# # Construct model to play around with length parameter
+# m = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps)
+# nθ_pred = 11
+# nω_pred = 11
+# θs = collect(range(0, stop=σθ_max, length=nθ_pred))
+# ωs = collect(range(0, stop=σω_max, length=nω_pred))
+# m.X = [[θs[i], ωs[j]] for i = 1:nθ_pred for j = 1:nω_pred]
+# m.X_inds = [interpolants(m.grid, m.X[i])[1][1] for i = 1:length(m.X)]
+# m.y = ones(length(m.X))
 
-plot_eval_points(m)
-plot_predictions(m)
+# plot_eval_points(m)
+# plot_predictions(m)
 
-wsqe_kernel(r, W; ℓ=0.01) = exp(-(r' * W * r) / (2 * ℓ^2))
+# wsqe_kernel(r, W; ℓ=0.01) = exp(-(r' * W * r) / (2 * ℓ^2))
 
-function test_new_ℓ(m, ℓ, w)
-    W = diagm(w ./ norm(w))
-    k(x, x′) = wsqe_kernel(x - x′, W, ℓ=ℓ)
-    m.k = k
-    m.K = get_K(m.X_pred, m.X_pred, k)
-    return plot_predictions(m)
-end
+# function test_new_ℓ(m, ℓ, w)
+#     W = diagm(w ./ norm(w))
+#     k(x, x′) = wsqe_kernel(x - x′, W, ℓ=ℓ)
+#     m.k = k
+#     m.K = get_K(m.X_pred, m.X_pred, k)
+#     return plot_predictions(m)
+# end
 
-@time test_new_ℓ(m, 5e-3, [1.0, 0.04])
+# @time test_new_ℓ(m, 5e-3, [1.0, 0.04])
 
 # k(x, x′) = wsqe_kernel(x - x′, [1.0 0.0; 0.0 1.0], ℓ=0.1)
 # k([0.0, 0.0], [0.1, 0.1])
