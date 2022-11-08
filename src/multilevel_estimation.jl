@@ -21,7 +21,7 @@ function run_estimation!(model::SetEstimationModel, problem::GriddedProblem, acq
     for i in ProgressBar(1:neval)
         # Select next point
         sample_ind = acquisition(model)
-        params = ind2x(model.grid, sample_ind)
+        params = to_params(model, sample_ind)
 
         # Evaluate
         res = problem.sim(params, model.nsamps)

@@ -60,6 +60,8 @@ end
 """
 Acquisition Functions
 """
+to_params(model::GaussianProcessModel, sample_ind) = ind2x(model.grid, sample_ind)
+
 function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
     """
     NOTE: this will not reevaluate an already selected point

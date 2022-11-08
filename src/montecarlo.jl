@@ -43,6 +43,8 @@ end
 """
 Acquisition Functions
 """
+to_params(model::MonteCarloModel, sample_ind) = ind2x(model.grid, sample_ind)
+
 mc_acquisition(model::MonteCarloModel) = model.curr_ind
 
 """
