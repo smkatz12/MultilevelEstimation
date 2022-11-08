@@ -2,7 +2,6 @@
 using GridInterpolations
 using Distributions
 using LinearAlgebra
-using ProgressBars
 
 """
 Set Estimation Model

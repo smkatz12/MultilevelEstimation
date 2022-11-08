@@ -1,4 +1,5 @@
 using GridInterpolations
+using ProgressBars
 
 # General problem
 mutable struct GriddedProblem
