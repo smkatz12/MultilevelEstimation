@@ -1,5 +1,14 @@
 using POMDPs, POMDPGym, Crux, Distributions, Plots, BSON, GridInterpolations, LinearAlgebra
 using BSON: @save
+using ColorSchemes, Colors
+
+mycmap = ColorScheme([RGB{Float64}(0.5, 1.5 * 0.5, 2.0 * 0.5),
+    RGB{Float64}(0.25, 1.5 * 0.25, 2.0 * 0.25),
+    RGB{Float64}(227 / 255, 27 / 255, 59 / 255),
+    RGB{Float64}(0.0, 0.0, 0.0)])
+mycmap_small = ColorScheme([RGB{Float64}(0.25, 1.5 * 0.25, 2.0 * 0.25),
+    RGB{Float64}(0.0, 0.0, 0.0)])
+
 
 include("../../src/multilevel_estimation.jl")
 include("../../src/montecarlo.jl")
@@ -85,6 +94,27 @@ function plot_test_stats(model::GaussianProcessModel, conf_threshold)
     return p1
 end
 
+function plot_safe_set(model::GaussianProcessModel, problem_gt::GriddedProblem)
+    all_X = [X for X in model.grid]
+    all_inds = collect(1:length(model.grid))
+    μ, σ² = predict(model, model.X, model.X_inds, model.y, all_X, all_inds, model.K)
+    β = quantile(Normal(), problem.conf_threshold)
+    is_safe = (μ .+ β .* sqrt.(σ²)) .< problem.pfail_threshold
+
+    colors = zeros(length(is_safe))
+    # TP_inds = findall(is_safe .& problem_gt.is_safe)
+    FN_inds = findall(.!is_safe .& problem_gt.is_safe)
+    !isnothing(FN_inds) ? colors[FN_inds] .= 0.25 : nothing
+    TN_inds = findall(.!is_safe .& .!problem_gt.is_safe)
+    !isnothing(TN_inds) ? colors[TN_inds] .= 0.5 : nothing
+    FP_inds = finalize(is_safe .& .!problem_gt.is_safe)
+    !isnothing(FP_inds) ? colors[FP_inds] .= 0.75 : nothing
+
+    p = to_heatmap(model.grid, colors, c=cgrad(mycmap, 4, categorical=true),
+        colorbar=:none)
+    p
+end
+
 function plot_summary(model::GaussianProcessModel, problem::GriddedProblem, iter)
     all_X = [X for X in model.grid]
     all_inds = collect(1:length(model.grid))
@@ -122,21 +152,67 @@ function plot_summary(model::GaussianProcessModel, problem::GriddedProblem)
     return plot_summary(model, problem, length(model.X))
 end
 
-plot_summary(model_MILE, problem, 0)
+function plot_summary_gt(model::GaussianProcessModel, problem::GriddedProblem, iter)
+    all_X = [X for X in model.grid]
+    all_inds = collect(1:length(model.grid))
+    μ, σ² = predict(model, model.X[1:iter], model.X_inds[1:iter], model.y[1:iter], all_X, all_inds, model.K)
 
-anim = @animate for iter in 1:length(model_MILE.X)
-    plot_summary(model_MILE, problem, iter)
-end
-Plots.gif(anim, "figs/MILE_example.gif", fps=10)
+    p1 = to_heatmap(model.grid, μ, title="μ", xlabel="σθ", ylabel="σω", c=:thermal)
+    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds[1:iter]]
+    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds[1:iter]]
+    scatter!(p1, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
 
-anim = @animate for iter in 1:length(model_MILE.X)
-    plot_summary(model_random, problem, iter)
+    p2 = to_heatmap(model.grid, sqrt.(σ²), title="σ", xlabel="σθ", ylabel="σω", c=:thermal)
+    scatter!(p2, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    β = quantile(Normal(), problem.conf_threshold)
+
+    p3 = to_heatmap(model.grid, μ .+ β .* sqrt.(σ²), title="Test Statistic", xlabel="σθ", ylabel="σω", c=:thermal)
+    scatter!(p3, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    is_safe = (μ .+ β .* sqrt.(σ²)) .< problem.pfail_threshold
+    colors = zeros(length(is_safe))
+    FN_inds = findall(.!is_safe .& problem.is_safe)
+    !isnothing(FN_inds) ? colors[FN_inds] .= 0.25 : nothing
+    TN_inds = findall(.!is_safe .& .!problem.is_safe)
+    !isnothing(TN_inds) ? colors[TN_inds] .= 0.5 : nothing
+    FP_inds = finalize(is_safe .& .!problem.is_safe)
+    !isnothing(FP_inds) ? colors[FP_inds] .= 0.75 : nothing
+
+    if sum(is_safe) > 0
+        p4 = to_heatmap(model.grid, colors, 
+            c=cgrad(mycmap, 4, categorical=true), colorbar=:none,
+            title="Estimated Safe Set", xlabel="σθ", ylabel="σω")
+    else
+        p4 = to_heatmap(model.grid, colors, 
+            c=cgrad(mycmap_small, 2, categorical=true), colorbar=:none,
+            title="Estimated Safe Set", xlabel="σθ", ylabel="σω")
+    end
+    scatter!(p4, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    return plot(p1, p2, p3, p4)
 end
-Plots.gif(anim, "figs/random_GP_example.gif", fps=10)
+
+function plot_summary_gt(model::GaussianProcessModel, problem::GriddedProblem)
+    return plot_summary_gt(model, problem, length(model.X))
+end
+
+# Ground truth
+model_gt = BSON.load("examples/pendulum/results/ground_truth.bson")[:model]
+problem_gt = pendulum_problem(100, 100, σθ_max=0.2, σω_max=1.0, conf_threshold=0.95)
+estimate_from_pfail!(problem_gt, model_gt)
 
 # Set up the problem
-nθ = 101
-nω = 101
+nθ = 100
+nω = 100
 σθ_max = 0.2
 σω_max = 1.0
 problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, conf_threshold=0.95)
@@ -149,7 +225,7 @@ set_sizes_random = run_estimation!(model_random, problem, random_acquisition, ns
 
 p = plot_eval_points(model_random)
 p = plot_predictions(model_random)
-p = plot_test_stats(model_random, 0.95)
+p = plot_test_stats(model_random, problem.conf_threshold)
 
 # μ, σ² = predict(model_random, model_random.X, model_random.X_inds, model_random.K)
 # scatter(σ²)
@@ -169,7 +245,19 @@ plot!(p, collect(0:nsamps:nsamps_tot), set_sizes_MILE, label="MILE", legend=:top
 
 p = plot_eval_points(model_MILE)
 p = plot_predictions(model_MILE)
-p = plot_test_stats(model_MILE, 0.95)
+p = plot_test_stats(model_MILE, problem.conf_threshold)
+
+plot_summary_gt(model_MILE, problem_gt, 30)
+
+anim = @animate for iter in 1:length(model_MILE.X)
+    plot_summary_gt(model_MILE, problem_gt, iter)
+end
+Plots.gif(anim, "figs/MILE_example_gt.gif", fps=10)
+
+anim = @animate for iter in 1:length(model_random.X)
+    plot_summary_gt(model_random, problem_gt, iter)
+end
+Plots.gif(anim, "figs/random_GP_example_gt.gif", fps=10)
 
 # # Debugging MILE
 # res, objecs = MILE_acquisition(model_MILE)
