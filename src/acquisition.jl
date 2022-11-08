@@ -123,9 +123,118 @@ function MILE(model::GaussianProcessModel, pfail_threshold, conf_threshold)
     end
 end
 
+function MILE2(model::GaussianProcessModel, pfail_threshold, conf_threshold)
+    β = quantile(Normal(), conf_threshold)
+
+    neval = length(model.X)
+
+    N = length(model.grid)
+    all_X = [X for X in model.grid]
+    all_inds = collect(1:length(model.grid))
+    μ, σ² = predict(model, all_X, all_inds, model.K)
+
+    # Debugging stuff (should be deleted later)
+    zout = zeros(10)
+
+
+    if neval > 0
+        objecs = zeros(N)
+        for i = 1:N
+            σ²GP⁺ = σ² .- (model.K[:, i] .^ 2) ./ (σ²[i] + model.ν)
+            zvec = (√(σ²[i] + model.ν) ./ model.K[:, i]) .* (pfail_threshold .- μ .- β .* σ²GP⁺)
+            objecs[i] = sum(cdf(Normal(), zvec))
+            if i == 4168
+                zout = zvec
+                println(sum(zvec))
+                println(σ²[i])
+                println(μ[i])
+            end
+        end
+
+        max_ind = argmax(objecs)
+        max_val = maximum(objecs)
+
+        return max_val, max_ind, zout
+    else
+        return 0.0, rand(1:length(model.grid))
+    end
+end
+
+function MILE3(model::GaussianProcessModel, pfail_threshold, conf_threshold)
+    β = quantile(Normal(), conf_threshold)
+
+    neval = length(model.X)
+    npred = length(model.X_pred)
+
+    # Debugging stuff (should be deleted later)
+    zout = zeros(10)
+
+    if neval > 0
+        objecs = zeros(npred)
+        μ, σ² = predict(model)
+        for i = 1:npred
+            x⁺ind = model.X_pred_inds[i]
+            σ²GP⁺ = σ² .- (model.K[model.X_pred_inds, x⁺ind] .^ 2) ./ (σ²[i] + model.ν)
+            zvec = (√(σ²[i] + model.ν) ./ model.K[model.X_pred_inds, x⁺ind]) .* (pfail_threshold .- μ .- β .* σ²GP⁺)
+            objecs[i] = sum(cdf(Normal(), zvec))
+            if model.X_pred_inds[i] == 1593
+                zout = σ²GP⁺ #zvec
+                # println(sum(zvec))
+                # println(σ²[i])
+                # println(μ[i])
+            end
+        end
+
+        max_ind = argmax(objecs)
+        max_val = maximum(objecs)
+
+        return max_val, model.X_pred_inds[max_ind], zout
+    else
+        return 0.0, rand(1:length(model.grid))
+    end
+end
+
+function MILE4(model::GaussianProcessModel, pfail_threshold, conf_threshold)
+    β = quantile(Normal(), conf_threshold)
+
+    neval = length(model.X)
+    npred = length(model.X_pred)
+
+    # Debugging stuff (should be deleted later)
+    zout = zeros(10)
+
+    if neval > 0
+        objecs = zeros(npred)
+        μ, S = predict_cov(model)
+        σ² = diag(S)
+        for i = 1:npred
+            # inds⁺ = [model.X_inds; i]
+            # tmp = model.K[model.X_pred_inds, inds⁺] / (model.K[inds⁺, inds⁺] + model.ν * I)
+            # σ²GP⁺ = 1.0 .- dot.(eachrow(tmp), eachcol(model.K[inds⁺, model.X_pred_inds])) .+ eps()
+            # x⁺ind = model.X_pred_inds[i]
+            σ²GP⁺ = σ² .- (S[:, i] .^ 2) ./ (σ²[i] + model.ν)
+            zvec = (√(σ²[i] + model.ν) ./ abs.(S[:, i])) .* (pfail_threshold .- μ .- β .* sqrt.(σ²GP⁺))
+            objecs[i] = sum(cdf(Normal(), zvec))
+            if model.X_pred_inds[i] == 8517
+                zout = S[:, i] #cdf(Normal(), zvec) # σ²GP⁺ #zvec
+                # println(sum(zvec))
+                # println(σ²[i])
+                # println(μ[i])
+            end
+        end
+
+        max_ind = argmax(objecs)
+        max_val = maximum(objecs)
+
+        return max_val, model.X_pred_inds[max_ind] #, objecs #zout
+    else
+        return 0.0, rand(1:length(model.grid))
+    end
+end
+
 function MILE_acquisition(model::GaussianProcessModel, pfail_threshold, conf_threshold)
-    _, ind = MILE(model, pfail_threshold, conf_threshold)
-    return ind
+    _, ind = MILE4(model, pfail_threshold, conf_threshold)
+    return ind #, objecs
 end
 
 function RMILE_acquisition(model::GaussianProcessModel, pfail_threshold, conf_threshold; γ=1e-5)

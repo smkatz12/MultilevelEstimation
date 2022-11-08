@@ -29,6 +29,17 @@ mutable struct GaussianProcessModel
     end
 end
 
+function reset!(model::GaussianProcessModel)
+    N = length(model.grid)
+    model.X = []
+    model.X_inds = []
+    model.y = []
+    model.X_pred = [X for X in model.grid]
+    model.X_pred_inds = collect(1:N)
+    model.α = ones(N)
+    model.β = ones(N)
+end
+
 function predict(GP::GaussianProcessModel)
     return predict(GP, GP.X_pred, GP.X_pred_inds, GP.K)
 end
@@ -68,6 +79,30 @@ function predict(GP::GaussianProcessModel, X_pred)
     S = get_K(X_pred, X_pred, GP.k) - tmp * get_K(GP.X, X_pred, GP.k)
     σ² = diag(S) .+ eps()
     return μ, σ²
+end
+
+function predict_cov(GP::GaussianProcessModel)
+    return predict_cov(GP, GP.X_pred, GP.X_pred_inds, GP.K)
+end
+
+function predict_cov(GP::GaussianProcessModel, X_pred, X_pred_inds, K)
+    # start = time()
+    tmp = K[X_pred_inds, GP.X_inds] / (K[GP.X_inds, GP.X_inds] + GP.ν * I)
+    # println("l1: ", time() - start)
+
+    # start = time()
+    μ = GP.m(X_pred) + tmp * (GP.y - GP.m(GP.X))
+    # println("l2: ", time() - start)
+
+    # start = time()
+    # # σ² = 1.0 .- diag(tmp * K[GP.X_inds, X_pred_inds])
+    # println("l3: ", time() - start)
+
+    # start = time()
+    S = GP.K[X_pred_inds, X_pred_inds] - tmp * GP.K[GP.X_inds, X_pred_inds]
+    # println("l4: ", time() - start)
+
+    return μ, S
 end
 
 function run_estimation!(model::GaussianProcessModel, problem::GriddedProblem, acquisition, nsamps;
