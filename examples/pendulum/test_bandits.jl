@@ -73,3 +73,8 @@ function plot_eval_points(model::BanditModel)
         xlabel="σθ", ylabel="σω")
     return p
 end
+
+plot_eval_points(model_random)
+plot_eval_points(model_mi)
+
+plot(model_mi.eval_inds)
