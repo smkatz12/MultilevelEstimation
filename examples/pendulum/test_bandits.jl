@@ -51,3 +51,25 @@ set_sizes_mi = run_estimation!(model_mi, problem, max_improvement_acquisition, n
 
 plot!(p, collect(0:nsamps), set_sizes_mi, label="Max Improvement", legend=:topleft, linetype=:steppre,
     xlabel="Number of Episodes", ylabel="Safe Set Size")
+
+function to_heatmap(grid::RectangleGrid, vals; kwargs...)
+    vals_mat = reshape(vals, length(grid.cutPoints[1]), length(grid.cutPoints[2]))
+    return heatmap(grid.cutPoints[1], grid.cutPoints[2], vals_mat'; kwargs...)
+end
+
+to_heatmap(model_random.grid, model_random.α .+ model_random.β, c=:thermal)
+to_heatmap(model_mi.grid, model_mi.α .+ model_mi.β, c=:thermal)
+
+function plot_eval_points(model::BanditModel)
+    xs = [pt[1] for pt in model.grid]
+    ys = [pt[2] for pt in model.grid]
+    p = scatter(xs, ys, legend=false,
+        markersize=0.5, markercolor=:black, markerstrokecolor=:black)
+
+    xs_eval = [ind2x(model.grid, i)[1] for i in unique(model.eval_inds)]
+    ys_eval = [ind2x(model.grid, i)[2] for i in unique(model.eval_inds)]
+    scatter!(p, xs_eval, ys_eval,
+        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
+        xlabel="σθ", ylabel="σω")
+    return p
+end

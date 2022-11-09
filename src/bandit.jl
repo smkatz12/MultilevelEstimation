@@ -57,9 +57,10 @@ function max_improvement_acquisition(model::BanditModel, pfail_threshold, conf_t
 
     for i = 1:length(model.grid)
         # Check if already safe
-        safe = cdf(Beta(model.α[i], model.β[i]), pfail_threshold) > conf_threshold
+        old_prob_mass = cdf(Beta(model.α[i], model.β[i]), pfail_threshold)
+        safe = old_prob_mass > conf_threshold
         if !safe
-            ei = expected_improvement(model.α[i], model.β[i], pfail_threshold)
+            ei = expected_improvement_v2(model.α[i], model.β[i], pfail_threshold, old_prob_mass)
             if ei > curr_best
                 curr_best = ei
                 curr_ind = i
@@ -100,4 +101,10 @@ function expected_improvement(α, β, pfail_threshold)
     p_success = β / (α + β)
     new_prob_mass = cdf(Beta(α, β + 1), pfail_threshold)
     return p_success * new_prob_mass
+end
+
+function expected_improvement_v2(α, β, pfail_threshold, old_prob_mass)
+    p_success = β / (α + β)
+    new_prob_mass = cdf(Beta(α, β + 1), pfail_threshold)
+    return p_success * (new_prob_mass - old_prob_mass)
 end
