@@ -43,13 +43,13 @@ set_sizes_random = run_estimation!(model_random, problem, random_acquisition, ns
 
 p = plot(collect(0:nsamps), set_sizes_random, label="random", legend=:topleft, linetype=:steppre)
 
-# Max improvement acquisition
+# LCB acquisition
 nsamps = 50000
-model_mi = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
-max_improvement_acquisition(model) = max_improvement_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
-set_sizes_mi = run_estimation!(model_mi, problem, max_improvement_acquisition, nsamps)
+model_lcb = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+lcb_acquisition(model) = lcb_acquisition(model, problem.pfail_threshold, problem.conf_threshold, c=0.1)
+set_sizes_lcb = run_estimation!(model_lcb, problem, lcb_acquisition, nsamps)
 
-plot!(p, collect(0:nsamps), set_sizes_mi, label="Max Improvement", legend=:topleft, linetype=:steppre,
+plot!(p, collect(0:nsamps), set_sizes_lcb, label="LCB", legend=:topleft, linetype=:steppre,
     xlabel="Number of Episodes", ylabel="Safe Set Size")
 
 function to_heatmap(grid::RectangleGrid, vals; kwargs...)
@@ -58,7 +58,7 @@ function to_heatmap(grid::RectangleGrid, vals; kwargs...)
 end
 
 to_heatmap(model_random.grid, model_random.α .+ model_random.β, c=:thermal)
-to_heatmap(model_mi.grid, model_mi.α .+ model_mi.β, c=:thermal)
+to_heatmap(model_lcb.grid, model_lcb.α .+ model_random.β, c=:thermal)
 
 function plot_eval_points(model::BanditModel)
     xs = [pt[1] for pt in model.grid]
@@ -75,6 +75,6 @@ function plot_eval_points(model::BanditModel)
 end
 
 plot_eval_points(model_random)
-plot_eval_points(model_mi)
+plot_eval_points(model_lcb)
 
-plot(model_mi.eval_inds)
+plot(model_lcb.eval_inds)

@@ -71,6 +71,36 @@ function max_improvement_acquisition(model::BanditModel, pfail_threshold, conf_t
     return curr_ind
 end
 
+function lcb_bayes_acquisition(model::BanditModel, pfail_threshold, conf_threshold)
+    # Compute current lbs
+    zvec = [quantile(Beta(α, β), conf_threshold) for (α, β) in zip(model.α, model.β)]
+    
+    # Mask out ones that are already safe
+    zvec[zvec .< pfail_threshold] .= Inf
+
+    # Return the lowest one
+    return argmin(zvec)
+end
+
+function lcb_acquisition(model::BanditModel, pfail_threshold, conf_threshold; c=0.1)
+    zvec = [quantile(Beta(α, β), conf_threshold) for (α, β) in zip(model.α, model.β)]
+    t = length(model.eval_inds)
+
+    A = zeros(length(zvec))
+    for i = 1:length(zvec)
+        if zvec[i] < pfail_threshold
+            A[i] = Inf
+        else
+            N = (model.α[i] + model.β[i])
+            Q = model.α[i] / N
+            A[i] = Q - c * √(log(t) / N)
+        end
+    end
+
+    # Return the lowest one
+    return argmin(A)
+end
+
 """
 Estimation Functions
 """
