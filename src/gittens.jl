@@ -1,20 +1,19 @@
 # Code for computing Gittens Allocation Index with discount
 # Using the restart formulation of Katehakis and Dermin
 using ProgressBars
+using LinearAlgebra
 
 mutable struct GittensIndex
     npulls::Int64
     β::Float64
-    v::Vector
+    v::AbstractMatrix
     function GittensIndex(npulls, β)
-        nstates = convert(Int64, ((npulls - 1) * npulls) / 2)
-        states = LinearIndices((1:npulls-1, 1:npulls-1))
-        v = zeros(nstates)
-        return new(npulls, β, nstates, states, v)
+        v = zeros(npulls - 1, npulls - 1)
+        return new(npulls, β, v)
     end
 end
 
-# TODO: function that calls GittensIndex on a state
+(gi::GittensIndex)(p, q) = (1 - gi.β) * gi.v[p, q]
 
 function calculate_gittens!(gi::GittensIndex; tol=1e-3, max_iter=1000)    
     iter = ProgressBar(1:max_iter)
@@ -33,29 +32,31 @@ end
 function dp_step!(gi)
     L = gi.npulls
     
-    for i = 1:L
-        for j = L-i:-1:1
-            si = gi.states[i, j]
-            if i + j == npulls
-                gi.v[si] = 0.0
+    for p = 1:L
+        for q = L-p:-1:1
+            if p + q == npulls
+                gi.v[p, q] = 0.0
             else
-                si_success = gi.states[i+1, j]
-                p_success = i / (i + j)
-
-                si_failure = gi.states[i, j+1]
+                p_success = p / (p + q)
                 p_failure = 1 - p_success
 
-                w_pq = p_success * (1 + β * gi.v[si_success]) + 
-                       p_failure * β * gi.v[si_failure]
+                w_pq = p_success * (1 + β * gi.v[p + 1, q]) + 
+                       p_failure * β * gi.v[p, q + 1]
                 
-                gi.v[si] = max(w_pq, states[1, 1])
+                gi.v[p, q] = max(w_pq, gi.v[1, 1])
             end
         end
     end
 end
 
-npulls = 10
-β = 0.99
-gi = GittensIndex(npulls, β)
+# npulls = 1000
+# β = 0.99
+# gi = GittensIndex(npulls, β)
 
-@time dp_step!(gi)
+# @time dp_step!(gi)
+
+# @time calculate_gittens!(gi)
+
+# gi(1, 1)
+# gi(1, 100)
+# gi(100, 1)
