@@ -101,6 +101,28 @@ function lcb_acquisition(model::BanditModel, pfail_threshold, conf_threshold; c=
     return argmin(A)
 end
 
+function gittens_acquisition(model::BanditModel, pfail_threshold, conf_threshold, gi;
+                             rand_argmax=false)
+    zvec = [quantile(Beta(α, β), conf_threshold) for (α, β) in zip(model.α, model.β)]
+    
+    gis = zeros(length(zvec))
+    for i = 1:length(zvec)
+        if zvec[i] < pfail_threshold
+            gis[i] = -Inf
+        else 
+            gis[i] = gi(convert(Int64, model.β[i]), convert(Int64, model.α[i]))
+        end
+    end
+
+    if rand_argmax
+        val = maximum(gis)
+        inds = findall(gis .== val)
+        return rand(inds)
+    else
+        return argmax(gis)
+    end
+end
+
 """
 Estimation Functions
 """

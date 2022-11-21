@@ -13,13 +13,19 @@ mutable struct GittensIndex
     end
 end
 
-(gi::GittensIndex)(p, q) = (1 - gi.β) * gi.v[p, q]
+function (gi::GittensIndex)(p, q) 
+    if p + q <= gi.npulls
+        return (1 - gi.β) * gi.v[p, q]
+    else
+        error("Exceeded max pulls")
+    end
+end
 
 function calculate_gittens!(gi::GittensIndex; tol=1e-3, max_iter=1000)    
     iter = ProgressBar(1:max_iter)
     for i in iter
         v_old = copy(gi.v)
-        dp_step!(gi)
+        dp_step_faster!(gi)
 
         resid = maximum(abs.(v_old - gi.v))
         set_postfix(iter, Resid="$resid")
@@ -49,13 +55,31 @@ function dp_step!(gi)
     end
 end
 
-# npulls = 1000
-# β = 0.99
-# gi = GittensIndex(npulls, β)
+function dp_step_faster!(gi)
+    L = gi.npulls
+
+    for ptot = L-1:-1:2
+        for p = 1:ptot-1
+            q = ptot - p
+    
+            p_success = p / (p + q)
+            p_failure = 1 - p_success
+
+            w_pq = p_success * (1 + β * gi.v[p+1, q]) +
+                    p_failure * β * gi.v[p, q+1]
+
+            gi.v[p, q] = max(w_pq, gi.v[1, 1])
+        end
+    end
+end
+
+npulls = 1000
+β = 0.9999
+gi = GittensIndex(npulls, β)
 
 # @time dp_step!(gi)
 
-# @time calculate_gittens!(gi)
+@time calculate_gittens!(gi, max_iter=10000)
 
 # gi(1, 1)
 # gi(1, 100)
