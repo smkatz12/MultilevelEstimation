@@ -6,10 +6,13 @@ using LinearAlgebra
 mutable struct GittensIndex
     npulls::Int64
     β::Float64
+    L::Int64
     v::AbstractMatrix
-    function GittensIndex(npulls, β)
-        v = zeros(npulls - 1, npulls - 1)
-        return new(npulls, β, v)
+    m::AbstractMatrix
+    function GittensIndex(npulls, β, L)
+        v = zeros(npulls, npulls)
+        m = zeros(L - 1, L - 1)
+        return new(npulls, β, L, v, m)
     end
 end
 
@@ -21,42 +24,61 @@ function (gi::GittensIndex)(p, q)
     end
 end
 
-function calculate_gittens!(gi::GittensIndex; tol=1e-3, max_iter=1000)    
-    iter = ProgressBar(1:max_iter)
-    for i in iter
-        v_old = copy(gi.v)
-        dp_step_faster!(gi)
+function calculate_gittens!(gi::GittensIndex; tol=1e-3, max_iter=1000)
+    npulls = gi.npulls
 
-        resid = maximum(abs.(v_old - gi.v))
-        set_postfix(iter, Resid="$resid")
+    dp_iter = ProgressBar(1:max_iter)
+    set_description(dp_iter, "DP: ")
+
+    for ptot in npulls:-1:2
+        print(ptot)
+        for p₀ in 1:ptot-1
+            print(p₀)
+            if p₀ > ptot - 1
+                break
+            end
+            q₀ = ptot - p₀
+            calculate_gittens!(gi, p₀, q₀, tol=tol, dp_iter=dp_iter)
+            gi.m[p₀, q₀] = gi.v[p₀, q₀]
+        end
+    end
+end
+
+function calculate_gittens!(gi::GittensIndex, p₀, q₀; tol=1e-3, dp_iter=ProgressBar(1:1000))    
+    for i in dp_iter
+        m_old = copy(gi.m)
+        dp_step_faster!(gi, p₀, q₀)
+
+        resid = maximum(abs.(m_old - gi.m))
+        set_postfix(dp_iter, Resid="$resid")
         if resid < tol
             break
         end
     end
 end
 
-function dp_step!(gi)
-    L = gi.npulls
+function dp_step!(gi, p₀, q₀)
+    L = gi.L
     
     for p = 1:L
         for q = L-p:-1:1
             if p + q == npulls
-                gi.v[p, q] = 0.0
+                gi.m[p, q] = 0.0
             else
                 p_success = p / (p + q)
                 p_failure = 1 - p_success
 
-                w_pq = p_success * (1 + β * gi.v[p + 1, q]) + 
-                       p_failure * β * gi.v[p, q + 1]
+                w_pq = p_success * (1 + β * gi.m[p + 1, q]) + 
+                       p_failure * β * gi.m[p, q + 1]
                 
-                gi.v[p, q] = max(w_pq, gi.v[1, 1])
+                gi.m[p, q] = max(w_pq, gi.m[p₀, q₀])
             end
         end
     end
 end
 
-function dp_step_faster!(gi)
-    L = gi.npulls
+function dp_step_faster!(gi, p₀, q₀)
+    L = gi.L
 
     for ptot = L-1:-1:2
         for p = 1:ptot-1
@@ -65,21 +87,22 @@ function dp_step_faster!(gi)
             p_success = p / (p + q)
             p_failure = 1 - p_success
 
-            w_pq = p_success * (1 + β * gi.v[p+1, q]) +
-                    p_failure * β * gi.v[p, q+1]
+            w_pq = p_success * (1 + β * gi.m[p+1, q]) +
+                    p_failure * β * gi.m[p, q+1]
 
-            gi.v[p, q] = max(w_pq, gi.v[1, 1])
+            gi.m[p, q] = max(w_pq, gi.m[p₀, q₀])
         end
     end
 end
 
-# npulls = 1000
-# β = 0.9999
-# gi = GittensIndex(npulls, β)
+npulls = 100
+β = 0.99
+L = 1000
+gi = GittensIndex(npulls, β, L)
 
-# @time dp_step!(gi)
+@time dp_step_faster!(gi, 1, 1)
 
-# @time calculate_gittens!(gi, max_iter=10000)
+@time calculate_gittens!(gi, max_iter=1000)
 
 # gi(1, 1)
 # gi(1, 100)
