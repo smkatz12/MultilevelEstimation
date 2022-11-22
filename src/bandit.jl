@@ -10,6 +10,7 @@ mutable struct BanditModel <: SetEstimationModel
     grid::RectangleGrid # Grid to evaluate on
     nsamps::Int # Number of samples to run per grid point (planning for one)
     eval_inds::Vector # Vector of points that got evaluated
+    eval_res::Vector # Vector of booleans corresponding to success or failure for each simulation
     α::Vector # Failure counts
     β::Vector # Success counts
     widths::Vector # Width in each dimension for each grid region
@@ -20,12 +21,14 @@ mutable struct BanditModel <: SetEstimationModel
         widths = [cps[2] - cps[1] for cps in grid.cutPoints]
         min_vals = [cps[1] for cps in grid.cutPoints]
         max_vals = [cps[end] for cps in grid.cutPoints]
-        return new(grid, 1, Vector{Int64}(), ones(N), ones(N), widths, min_vals, max_vals)
+        return new(grid, 1, Vector{Int64}(), Vector{Bool}(), ones(N), ones(N), widths, min_vals, max_vals)
     end
 end
 
 function reset!(model::BanditModel)
-    model.eval_inds = []
+    model.eval_inds = Vector{Int64}()
+    model.eval_inds = Vector{Bool}()
+    N = length(model.grid)
     model.α = ones(N)
     model.β = ones(N)
 end
@@ -35,6 +38,7 @@ Logging
 """
 function log!(model::BanditModel, sample_ind, res)
     push!(model.eval_inds, sample_ind)
+    push!(model.eval_res, res[1])
 
     nfail = sum(res)
     model.α[sample_ind] += nfail

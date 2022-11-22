@@ -46,12 +46,12 @@ end
 
 # Ground truth
 model_gt = BSON.load("examples/pendulum/results/ground_truth.bson")[:model]
-problem_gt = pendulum_problem(100, 100, σθ_max=0.2, σω_max=1.0, conf_threshold=0.95)
+problem_gt = pendulum_problem(101, 101, σθ_max=0.2, σω_max=1.0, conf_threshold=0.95)
 estimate_from_pfail!(problem_gt, model_gt)
 
 # Set up the problem
-nθ = 100
-nω = 100
+nθ = 101
+nω = 101
 σθ_max = 0.2
 σω_max = 1.0
 problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, conf_threshold=0.95)
@@ -68,7 +68,7 @@ nsamps = 50000
 model_gi = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
 gi = BSON.load("src/gittens_data/gi_1000pulls_beta9999.bson")[:gi]
 gi_acquisition(model) = gittens_acquisition(model, problem.pfail_threshold, problem.conf_threshold, gi, 
-                                            rand_argmax=false)
+                                            rand_argmax=true)
 set_sizes_gi = run_estimation!(model_gi, problem, gi_acquisition, nsamps)
 
 plot!(p, collect(0:nsamps), set_sizes_gi, label="Gittens 0.99", legend=:topleft, linetype=:steppre,

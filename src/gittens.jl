@@ -73,13 +73,13 @@ function dp_step_faster!(gi)
     end
 end
 
-npulls = 1000
-β = 0.9999
-gi = GittensIndex(npulls, β)
+# npulls = 1000
+# β = 0.9999
+# gi = GittensIndex(npulls, β)
 
 # @time dp_step!(gi)
 
-@time calculate_gittens!(gi, max_iter=10000)
+# @time calculate_gittens!(gi, max_iter=10000)
 
 # gi(1, 1)
 # gi(1, 100)
