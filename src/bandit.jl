@@ -127,6 +127,14 @@ function gittens_acquisition(model::BanditModel, pfail_threshold, conf_threshold
     end
 end
 
+function thompson_acquisition(model::BanditModel, pfail_threshold, conf_threshold)
+    zvec = [quantile(Beta(α, β), conf_threshold) for (α, β) in zip(model.α, model.β)]
+    samps = [rand(Beta(α, β)) for (α, β) in zip(model.α, model.β)]
+    samps[zvec .< pfail_threshold] .= Inf
+    return argmin(samps)
+end
+
+
 """
 Estimation Functions
 """

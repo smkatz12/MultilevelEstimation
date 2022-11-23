@@ -12,7 +12,7 @@ mycmap_small = ColorScheme([RGB{Float64}(0.25, 1.5 * 0.25, 2.0 * 0.25),
 include("../../src/multilevel_estimation.jl")
 include("../../src/montecarlo.jl")
 include("../../src/bandit.jl")
-include("../../src/gittens.jl")
+# include("../../src/gittens.jl")
 include("controller.jl")
 include("setup.jl")
 
@@ -63,22 +63,20 @@ set_sizes_random = run_estimation!(model_random, problem, random_acquisition, ns
 
 p = plot(collect(0:nsamps), set_sizes_random, label="random", legend=:topleft, linetype=:steppre)
 
-# Gittens Allocation Index Acquistion
+# Thompson Sampling Acquistion
 nsamps = 50000
-model_gi = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
-gi = BSON.load("src/gittens_data/gi_1000pulls_beta9999.bson")[:gi]
-gi_acquisition(model) = gittens_acquisition(model, problem.pfail_threshold, problem.conf_threshold, gi, 
-                                            rand_argmax=true)
-set_sizes_gi = run_estimation!(model_gi, problem, gi_acquisition, nsamps)
+model_thompson = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+thompson_acquisition(model) = thompson_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
+set_sizes_thompson = run_estimation!(model_thompson, problem, thompson_acquisition, nsamps)
 
-plot!(p, collect(0:nsamps), set_sizes_gi, label="Gittens 0.99", legend=:topleft, linetype=:steppre,
+plot!(p, collect(0:nsamps), set_sizes_thompson, label="Thompson", legend=:topleft, linetype=:steppre,
     xlabel="Number of Episodes", ylabel="Safe Set Size")
 
 plot_eval_points(model_random)
-plot_eval_points(model_gi)
+plot_eval_points(model_thompson)
 
 to_heatmap(model_random.grid, model_random.α .+ model_random.β, c=:thermal)
-to_heatmap(model_gi.grid, model_gi.α .+ model_gi.β, c=:thermal)
+to_heatmap(model_thompson.grid, model_thompson.α .+ model_thompson.β, c=:thermal)
 
 function plot_summary_gt(model::BanditModel, problem::GriddedProblem, iter)
     eval_inds = model.eval_inds[1:iter]
@@ -143,3 +141,11 @@ end
 
 heatmap(0:999, 0:999, get_heat, xlabel="α", ylabel="β")
 plot(1:999, (x) -> gi(x, 1), legend=false, xlabel="α", ylabel="gi(α, 1)")
+
+# Gittens Allocation Index Acquistion
+# nsamps = 50000
+# model_gi = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+# gi = BSON.load("src/gittens_data/gi_1000pulls_beta9999.bson")[:gi]
+# gi_acquisition(model) = gittens_acquisition(model, problem.pfail_threshold, problem.conf_threshold, gi,
+#     rand_argmax=true)
+# set_sizes_gi = run_estimation!(model_gi, problem, gi_acquisition, nsamps)
