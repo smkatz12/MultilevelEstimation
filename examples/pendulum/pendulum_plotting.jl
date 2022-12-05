@@ -19,9 +19,10 @@ end
 function plot_eval_points(model::GaussianProcessModel, iter; include_grid=true, kwargs...)
     xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds[1:iter]]
     ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds[1:iter]]
-    p = scatter(xs_eval, ys_eval,
-        markersize=2.0, markercolor=:green, markerstrokecolor=:green,
-        xlabel="σθ", ylabel="σω", legend=false; kwargs...)
+    p = scatter(xs_eval, ys_eval, zcolor=30 * ones(length(xs_eval)),
+        markersize=0.5, marker=:c, msw=0, c=:blues, clims=(1, 30),
+        xlabel="σθ", ylabel="σω", legend=false,
+        xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
 
     if include_grid
         xs = [pt[1] for pt in model.grid]
@@ -38,7 +39,7 @@ function plot_eval_points(model::GaussianProcessModel; include_grid=true, kwargs
 end
 
 # Bandit
-function plot_eval_points(model::BanditModel, iter; include_grid=true, kwargs...)
+function plot_eval_points_size(model::BanditModel, iter; include_grid=true, kwargs...)
     eval_inds = model.eval_inds[1:iter]
     eval_set = unique(eval_inds)
     xs_eval = [ind2x(model.grid, i)[1] for i in eval_set]
@@ -49,6 +50,27 @@ function plot_eval_points(model::BanditModel, iter; include_grid=true, kwargs...
     p = scatter(xs_eval, ys_eval,
         markersize=szs, markercolor=:green, markerstrokecolor=:green,
         xlabel="σθ", ylabel="σω", legend=false; kwargs...)
+
+    if include_grid
+        xs = [pt[1] for pt in model.grid]
+        ys = [pt[2] for pt in model.grid]
+        scatter!(p, xs, ys, legend=false,
+            markersize=0.5, markercolor=:black, markerstrokecolor=:black)
+    end
+    return p
+end
+
+function plot_eval_points(model::BanditModel, iter; include_grid=true, kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_set = unique(eval_inds)
+    xs_eval = [ind2x(model.grid, i)[1] for i in eval_set]
+    ys_eval = [ind2x(model.grid, i)[2] for i in eval_set]
+    neval = [length(findall(eval_inds .== i)) for i in eval_set]
+
+    p = scatter(xs_eval, ys_eval, zcolor=neval, c=:blues, clims=(1, 30),
+        markersize=0.5, marker=:c, msw=0, #markerstrokecolor=:white,
+        xlabel="σθ", ylabel="σω", legend=false,
+        xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
 
     if include_grid
         xs = [pt[1] for pt in model.grid]
@@ -76,9 +98,9 @@ function plot_safe_set(model::GaussianProcessModel, problem_gt::GriddedProblem, 
     FN_inds = findall(.!is_safe .& problem_gt.is_safe)
     !isnothing(FN_inds) ? colors[FN_inds] .= 0.25 : nothing
     TN_inds = findall(.!is_safe .& .!problem_gt.is_safe)
-    !isnothing(TN_inds) ? colors[TN_inds] .= 0.5 : nothing
+    !isnothing(TN_inds) ? colors[TN_inds] .= 0.75 : nothing
     FP_inds = findall(is_safe .& .!problem_gt.is_safe)
-    !isnothing(FP_inds) ? colors[FP_inds] .= 0.75 : nothing
+    !isnothing(FP_inds) ? colors[FP_inds] .= 0.5 : nothing
 
     if sum(is_safe) > 0
         p = to_heatmap(model.grid, colors, 
@@ -176,9 +198,10 @@ function plot_GP_compare(model_random::GaussianProcessModel, model_MILE::Gaussia
                          problem_gt::GriddedProblem, iter)
 
     p1 = plot(collect(range(0, step=nsamps_indiv, length=iter+1)), set_sizes_random[1:iter+1], 
-              label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=2)
+              label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=2,
+              xlims=(0, 50000), ylims=(0, 2200))
     plot!(p1, collect(range(0, step=nsamps_indiv, length=iter+1)), set_sizes_MILE[1:iter+1], 
-          label="MILE", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
+          label="MILE", legend=:topleft, linetype=:steppre, color=:magenta, lw=2,
           xlabel="Number of Episodes", ylabel="Safe Set Size")
 
     p3 = plot_test_stats(model_random, problem_gt.conf_threshold, iter, colorbar=false, title="Test Statistic Random")
@@ -204,7 +227,7 @@ function plot_bandit_compare(model_random::BanditModel, model_thompson::BanditMo
               label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=2)
     plot!(p1, collect(0:iter), set_sizes_thompson[1:iter+1], 
           label="Thompson", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
-          xlabel="Number of Episodes", ylabel="Safe Set Size", ylims=(0, 700))
+          xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, 700))
 
     p2 = plot_eval_points(model_random, iter, include_grid=false, title="Evaluations Random")
     p3 = plot_safe_set(model_random, problem_gt, iter, title="Safe Set Random")
@@ -214,6 +237,35 @@ function plot_bandit_compare(model_random::BanditModel, model_thompson::BanditMo
 
     l = @layout [
         a{0.4w, 0.6h} [grid(2, 2)]
+    ]
+    p = plot(p1, p2, p3, p4, p5, layout=l, size=(800, 600))
+
+    return p
+end
+
+""" GP Bandit Comparison """
+function plot_method_compare(model_gp::GaussianProcessModel, model_bandit::BanditModel,
+    set_sizes_gp, set_sizes_bandit,
+    problem_gt::GriddedProblem, iter)
+
+    iter = iter == 0 ? 1 : iter
+    gp_iter = iter > 1 ? convert(Int64, iter / 100) : 1
+
+    size_max = maximum(set_sizes_gp)
+    p1 = plot(collect(range(0, step=nsamps_indiv, length=gp_iter + 1)), set_sizes_gp[1:gp_iter+1],
+        label="GP", legend=:topleft, linetype=:steppre, color=:magenta, lw=2)
+    plot!(p1, collect(0:iter), set_sizes_bandit[1:iter+1],
+        label="Bandit", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
+        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, size_max))
+
+    p2 = plot_eval_points(model_gp, gp_iter, include_grid=false, title="Evaluations GP")
+    p3 = plot_safe_set(model_gp, problem_gt, gp_iter, title="Safe Set GP")
+
+    p4 = plot_eval_points(model_bandit, iter, include_grid=false, title="Evaluations Bandit")
+    p5 = plot_safe_set(model_bandit, problem_gt, iter, title="Safe Set Bandit")
+
+    l = @layout [
+        a{0.4w,0.6h} [grid(2, 2)]
     ]
     p = plot(p1, p2, p3, p4, p5, layout=l, size=(800, 600))
 

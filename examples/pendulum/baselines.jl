@@ -74,6 +74,19 @@ model_thompson = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σ�
 thompson_acquisition(model) = thompson_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 set_sizes_thompson = run_estimation!(model_thompson, problem, thompson_acquisition, nsamps_tot)
 
+# Summary plots
+plot_method_compare(model_MILE, model_thompson,
+    set_sizes_MILE, set_sizes_thompson,
+    problem_gt, 50000)
+
+anim = @animate for iter in 0:100:50000
+    println(iter)
+    plot_method_compare(model_MILE, model_thompson, 
+        set_sizes_MILE, set_sizes_thompson,
+        problem_gt, iter)
+end
+Plots.gif(anim, "figs/compare_output.gif", fps=30)
+
 # Bandit only plots
 plot_eval_points(model_brandom, include_grid=false)
 plot_eval_points(model_thompson, include_grid=false)
@@ -87,9 +100,9 @@ plot_bandit_compare(model_brandom, model_thompson, set_sizes_brandom, set_sizes_
 anim = @animate for iter in 1:100:50000
     println(iter)
     plot_bandit_compare(model_brandom, model_thompson, set_sizes_brandom, set_sizes_thompson,
-                        problem_gt, iter)
+        problem_gt, iter)
 end
-Plots.gif(anim, "figs/bandit_output.gif", fps=20)
+Plots.gif(anim, "figs/bandit_output.gif", fps=30)
 
 # GP only plots
 p = plot(collect(0:nsamps_indiv:nsamps_tot), set_sizes_random, label="random", legend=:topleft, linetype=:steppre)
@@ -106,7 +119,7 @@ plot_safe_set(model_random, problem_gt)
 plot_safe_set(model_MILE, problem_gt)
 
 plot_GP_compare(model_random, model_MILE, set_sizes_random, set_sizes_MILE,
-    nsamps_indiv, problem_gt, 500)
+    nsamps_indiv, problem_gt, 100)
 savefig("figs/MILEvRandom100.png")
 
 anim = @animate for iter in 1:500
@@ -114,4 +127,4 @@ anim = @animate for iter in 1:500
     plot_GP_compare(model_random, model_MILE, set_sizes_random, set_sizes_MILE,
         nsamps_indiv, problem_gt, iter)
 end
-Plots.gif(anim, "figs/MILE_output_100.gif", fps=20)
+Plots.gif(anim, "figs/MILE_output_100.gif", fps=30)
