@@ -185,6 +185,32 @@ function plot_test_stats(model::GaussianProcessModel, conf_threshold; kwargs...)
     return plot_test_stats(model, conf_threshold, length(model.X_inds); kwargs...)
 end
 
+function plot_dist(model::GaussianProcessModel, iter; kwargs...)
+    β = quantile(Normal(), conf_threshold)
+
+    all_X = [X for X in model.grid]
+    all_inds = collect(1:length(model.grid))
+    μ, σ² = predict(model, model.X[1:iter], model.X_inds[1:iter], model.y[1:iter], all_X, all_inds, model.K)
+
+    p1 = to_heatmap(model.grid, μ, xlabel="σθ", ylabel="σω", title="μ"; kwargs...)
+    p2 = to_heatmap(model.grid, sqrt.(σ²), xlabel="σθ", ylabel="σω", title="σ"; kwargs...)
+
+    xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds[1:iter]]
+    ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds[1:iter]]
+    scatter!(p1, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:aqua, markerstrokecolor=:aqua,
+        xlabel="σθ", ylabel="σω", legend=false)
+    scatter!(p2, xs_eval, ys_eval,
+        markersize=1.0, markercolor=:aqua, markerstrokecolor=:aqua,
+        xlabel="σθ", ylabel="σω", legend=false)
+
+    return plot(p1, p2)
+end
+
+function plot_test_stats(model::GaussianProcessModel, conf_threshold; kwargs...)
+    return plot_test_stats(model, conf_threshold, length(model.X_inds); kwargs...)
+end
+
 function plot_GP_summary(model::GaussianProcessModel, problem_gt::GriddedProblem, iter)
     p1 = plot_eval_points(model, iter, title="Evaluated Points")
     p2 = plot_test_stats(model, problem_gt.conf_threshold, iter)

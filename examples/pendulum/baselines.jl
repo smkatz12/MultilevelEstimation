@@ -55,24 +55,30 @@ problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, conf_
 nsamps_indiv = 100
 nsamps_tot = 50000
 
-# GP random
-model_random = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps_indiv, ℓ=1e-2)
-set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps_tot)
+# # GP random
+# model_random = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps_indiv, ℓ=1e-2)
+# set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps_tot)
 
-# GP MILE
-model_MILE = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps_indiv, ℓ=1e-2)
-MILE_acquisition(model) = MILE_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
-reset!(model_MILE)
-set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot)
+# # GP MILE
+# model_MILE = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps_indiv, ℓ=1e-2)
+# MILE_acquisition(model) = MILE_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
+# reset!(model_MILE)
+# set_sizes_MILE = run_estimation!(model_MILE, problem, MILE_acquisition, nsamps_tot)
 
-# Bandit random
-model_brandom = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
-set_sizes_brandom = run_estimation!(model_brandom, problem, random_acquisition, nsamps_tot)
+# # Bandit random
+# model_brandom = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+# set_sizes_brandom = run_estimation!(model_brandom, problem, random_acquisition, nsamps_tot)
 
-# Bandit thompson
-model_thompson = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
-thompson_acquisition(model) = thompson_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
-set_sizes_thompson = run_estimation!(model_thompson, problem, thompson_acquisition, nsamps_tot)
+# # Bandit thompson
+# model_thompson = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+# thompson_acquisition(model) = thompson_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
+# set_sizes_thompson = run_estimation!(model_thompson, problem, thompson_acquisition, nsamps_tot)
+
+res = BSON.load("/scratch/smkatz/AA275_data.bson")
+model_random = res[:model_random]
+model_MILE = res[:model_MILE]
+model_brandom = res[:model_brandom]
+model_thompson = res[:model_thompson]
 
 # Summary plots
 plot_method_compare(model_MILE, model_thompson,
@@ -108,6 +114,8 @@ Plots.gif(anim, "figs/bandit_output.gif", fps=30)
 p = plot(collect(0:nsamps_indiv:nsamps_tot), set_sizes_random, label="random", legend=:topleft, linetype=:steppre)
 plot!(p, collect(0:nsamps_indiv:nsamps_tot), set_sizes_MILE, label="MILE", legend=:topleft, linetype=:steppre,
     xlabel="Number of Episodes", ylabel="Safe Set Size")
+
+plot_dist(model_random, 100)
 
 plot_eval_points(model_random)
 plot_eval_points(model_MILE)
