@@ -67,9 +67,13 @@ function plot_eval_points(model::BanditModel, iter; include_grid=true, kwargs...
     ys_eval = [ind2x(model.grid, i)[2] for i in eval_set]
     neval = [length(findall(eval_inds .== i)) for i in eval_set]
 
+    # p = scatter(xs_eval, ys_eval, zcolor=neval, c=:blues, clims=(1, 30),
+    #     markersize=0.5, marker=:c, msw=0, #markerstrokecolor=:white,
+    #     xlabel="σθ", ylabel="σω", legend=false,
+    #     xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
     p = scatter(xs_eval, ys_eval, zcolor=neval, c=:blues, clims=(1, 30),
-        markersize=0.5, marker=:c, msw=0, #markerstrokecolor=:white,
-        xlabel="σθ", ylabel="σω", legend=false,
+        markersize=0.8, marker=:c, msw=0, #markerstrokecolor=:white,
+        ylabel="σω", legend=false,
         xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
 
     if include_grid
@@ -170,13 +174,13 @@ function plot_test_stats(model::GaussianProcessModel, conf_threshold, iter; kwar
     all_X = [X for X in model.grid]
     all_inds = collect(1:length(model.grid))
     μ, σ² = predict(model, model.X[1:iter], model.X_inds[1:iter], model.y[1:iter], all_X, all_inds, model.K)
-    p1 = to_heatmap(model.grid, μ .+ β .* sqrt.(σ²), xlabel="σθ", ylabel="σω"; kwargs...)
+    # p1 = to_heatmap(model.grid, μ .+ β .* sqrt.(σ²), xlabel="σθ", ylabel="σω"; kwargs...)
+    p1 = to_heatmap(model.grid, μ .+ β .* sqrt.(σ²), ylabel="σω"; kwargs...)
 
     xs_eval = [ind2x(model.grid, i)[1] for i in model.X_inds[1:iter]]
     ys_eval = [ind2x(model.grid, i)[2] for i in model.X_inds[1:iter]]
     scatter!(p1, xs_eval, ys_eval,
-        markersize=1.0, markercolor=:aqua, markerstrokecolor=:aqua,
-        xlabel="σθ", ylabel="σω", legend=false)
+        markersize=1.0, markercolor=:aqua, markerstrokecolor=:aqua, ylabel="σω", legend=false)
 
     return p1
 end
