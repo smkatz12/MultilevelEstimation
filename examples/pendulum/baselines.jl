@@ -230,7 +230,7 @@ p1 = plot(collect(range(0, step=nsamps_indiv, length=501)), set_sizes_MILE[1:501
 plot!(p1, collect(0:50000), set_sizes_thompson[1:50001],
     label="Threshold Bandit", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), size=(380, 380),
-    ylims=(0, 2200), right_margin=3mm)
+    ylims=(0, 2200), right_margin=8mm)
 # savefig("figs/AA275_comparison.pdf")
 
 # Summary plots
