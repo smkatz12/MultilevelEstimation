@@ -318,12 +318,12 @@ function plot_method_compare_dark(model_gp::GaussianProcessModel, model_bandit::
         xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, size_max))
 
     p2 = plot_eval_points(model_gp, gp_iter, include_grid=false, title="Evaluations GP",
-                          foreground_color_subplot="white")
+                          foreground_color_subplot="white", c=:thermal)
     p3 = plot_safe_set(model_gp, problem_gt, gp_iter, title="Safe Set GP",
                        foreground_color_subplot="white")
 
     p4 = plot_eval_points(model_bandit, iter, include_grid=false, title="Evaluations Bandit",
-                        foreground_color_subplot="white")
+                        foreground_color_subplot="white", c=:thermal)
     p5 = plot_safe_set(model_bandit, problem_gt, iter, title="Safe Set Bandit",
                        foreground_color_subplot="white")
 
