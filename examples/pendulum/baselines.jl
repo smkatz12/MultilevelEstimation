@@ -246,6 +246,18 @@ anim = @animate for iter in 0:100:50000
 end
 Plots.gif(anim, "figs/compare_output.gif", fps=30)
 
+plot_method_compare_dark(model_MILE, model_thompson,
+    set_sizes_MILE, set_sizes_thompson,
+    problem_gt, 50000)
+
+anim = @animate for iter in 0:100:50000
+    println(iter)
+    plot_method_compare_dark(model_MILE, model_thompson,
+        set_sizes_MILE, set_sizes_thompson,
+        problem_gt, iter)
+end
+Plots.gif(anim, "figs/compare_output_dark.gif", fps=30)
+
 # Bandit only plots
 plot_eval_points(model_brandom, include_grid=false)
 plot_eval_points(model_thompson, include_grid=false)
