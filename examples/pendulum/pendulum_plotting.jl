@@ -301,3 +301,36 @@ function plot_method_compare(model_gp::GaussianProcessModel, model_bandit::Bandi
 
     return p
 end
+
+function plot_method_compare_dark(model_gp::GaussianProcessModel, model_bandit::BanditModel,
+    set_sizes_gp, set_sizes_bandit,
+    problem_gt::GriddedProblem, iter)
+
+    iter = iter == 0 ? 1 : iter
+    gp_iter = iter > 1 ? convert(Int64, iter / 100) : 1
+
+    size_max = maximum(set_sizes_gp)
+    p1 = plot(collect(range(0, step=nsamps_indiv, length=gp_iter + 1)), set_sizes_gp[1:gp_iter+1],
+        label="GP", legend=:topleft, linetype=:steppre, color=:magenta, lw=2,
+        foreground_color_subplot="white", )
+    plot!(p1, collect(0:iter), set_sizes_bandit[1:iter+1],
+        label="Bandit", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
+        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, size_max))
+
+    p2 = plot_eval_points(model_gp, gp_iter, include_grid=false, title="Evaluations GP",
+                          foreground_color_subplot="white")
+    p3 = plot_safe_set(model_gp, problem_gt, gp_iter, title="Safe Set GP",
+                       foreground_color_subplot="white")
+
+    p4 = plot_eval_points(model_bandit, iter, include_grid=false, title="Evaluations Bandit",
+                        foreground_color_subplot="white")
+    p5 = plot_safe_set(model_bandit, problem_gt, iter, title="Safe Set Bandit",
+                       foreground_color_subplot="white")
+
+    l = @layout [
+        a{0.4w,0.6h} [grid(2, 2)]
+    ]
+    p = plot(p1, p2, p3, p4, p5, layout=l, size=(800, 600), background_color=:black)
+
+    return p
+end

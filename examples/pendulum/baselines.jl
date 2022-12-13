@@ -104,33 +104,33 @@ set_sizes_MILE = get_GP_set_sizes(model_MILE)
 set_sizes_random = [0; set_sizes_random]
 set_sizes_MILE = [0; set_sizes_MILE]
 
-iter = 500
-p1 = plot(collect(range(0, step=nsamps_indiv, length=iter + 1)), set_sizes_random[1:iter+1],
-    label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=2,
-    xlims=(0, 50000), ylims=(0, 2200), xticks=[10000, 30000, 50000])
-plot!(p1, collect(range(0, step=nsamps_indiv, length=iter + 1)), set_sizes_MILE[1:iter+1],
-    label="MILE", legend=:topleft, linetype=:steppre, color=:magenta, lw=2,
-    xlabel="Number of Episodes", ylabel="Safe Set Size")
+# iter = 500
+# p1 = plot(collect(range(0, step=nsamps_indiv, length=iter + 1)), set_sizes_random[1:iter+1],
+#     label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=2,
+#     xlims=(0, 50000), ylims=(0, 2200), xticks=[10000, 30000, 50000])
+# plot!(p1, collect(range(0, step=nsamps_indiv, length=iter + 1)), set_sizes_MILE[1:iter+1],
+#     label="MILE", legend=:topleft, linetype=:steppre, color=:magenta, lw=2,
+#     xlabel="Number of Episodes", ylabel="Safe Set Size")
 
-p2 = plot_test_stats(model_MILE, problem_gt.conf_threshold, 5, colorbar=false,
-    xlims=(0.0, 0.2), ylims=(0.0, 1.0), xticks=false, title="500 Episodes",
-    titlefontsize=12)
-p3 = plot_test_stats(model_MILE, problem_gt.conf_threshold, 150, colorbar=false,
-    xlims=(0.0, 0.2), ylims=(0.0, 1.0), xticks=false, title="15,000 Episodes",
-    titlefontsize=12)
-p4 = plot_test_stats(model_MILE, problem_gt.conf_threshold, 500, colorbar=false,
-    xlims=(0.0, 0.2), ylims=(0.0, 1.0), xticks=false, title="50,000 Episodes",
-    titlefontsize=12)
+# p2 = plot_test_stats(model_MILE, problem_gt.conf_threshold, 5, colorbar=false,
+#     xlims=(0.0, 0.2), ylims=(0.0, 1.0), xticks=false, title="500 Episodes",
+#     titlefontsize=12)
+# p3 = plot_test_stats(model_MILE, problem_gt.conf_threshold, 150, colorbar=false,
+#     xlims=(0.0, 0.2), ylims=(0.0, 1.0), xticks=false, title="15,000 Episodes",
+#     titlefontsize=12)
+# p4 = plot_test_stats(model_MILE, problem_gt.conf_threshold, 500, colorbar=false,
+#     xlims=(0.0, 0.2), ylims=(0.0, 1.0), xticks=false, title="50,000 Episodes",
+#     titlefontsize=12)
 
-p5 = plot_safe_set(model_MILE, problem_gt, 5)
-p6 = plot_safe_set(model_MILE, problem_gt, 150)
-p7 = plot_safe_set(model_MILE, problem_gt, 500)
+# p5 = plot_safe_set(model_MILE, problem_gt, 5)
+# p6 = plot_safe_set(model_MILE, problem_gt, 150)
+# p7 = plot_safe_set(model_MILE, problem_gt, 500)
 
-l = @layout [
-    a{0.3w} [grid(2, 3)]
-]
-p = plot(p1, p2, p3, p4, p5, p6, p7, layout=l, size=(800, 300),
-    left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
+# l = @layout [
+#     a{0.3w} [grid(2, 3)]
+# ]
+# p = plot(p1, p2, p3, p4, p5, p6, p7, layout=l, size=(800, 300),
+#     left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
 # savefig("figs/AA275_GP.pdf")
 
 # Bandit Plot
@@ -198,40 +198,40 @@ set_sizes_thompson = get_set_sizes_bandit(model_thompson)
 set_sizes_brandom = [0; set_sizes_brandom]
 set_sizes_thompson = [0; set_sizes_thompson]
 
-iter = 50000
-p1 = plot(collect(0:iter), set_sizes_brandom,
-    label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=4)
-plot!(p1, collect(0:iter), set_sizes_thompson,
-    label="Thompson", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
-    xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, 700),
-    xticks=[10000, 30000, 50000])
+# iter = 50000
+# p1 = plot(collect(0:iter), set_sizes_brandom,
+#     label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=4)
+# plot!(p1, collect(0:iter), set_sizes_thompson,
+#     label="Thompson", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
+#     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, 700),
+#     xticks=[10000, 30000, 50000])
 
-p2 = plot_eval_points(model_thompson, 500, include_grid=false, xticks=false,
-                      title="500 Episodes")
-p3 = plot_eval_points(model_thompson, 15000, include_grid=false, xticks=false,
-                      title="15,000 Episodes")
-p4 = plot_eval_points(model_thompson, 50000, include_grid=false, xticks=false,
-                      title="50,000 Episodes")
+# p2 = plot_eval_points(model_thompson, 500, include_grid=false, xticks=false,
+#                       title="500 Episodes")
+# p3 = plot_eval_points(model_thompson, 15000, include_grid=false, xticks=false,
+#                       title="15,000 Episodes")
+# p4 = plot_eval_points(model_thompson, 50000, include_grid=false, xticks=false,
+#                       title="50,000 Episodes")
 
-p5 = plot_safe_set(model_thompson, problem_gt, 500)
-p6 = plot_safe_set(model_thompson, problem_gt, 15000)
-p7 = plot_safe_set(model_thompson, problem_gt, 50000)
+# p5 = plot_safe_set(model_thompson, problem_gt, 500)
+# p6 = plot_safe_set(model_thompson, problem_gt, 15000)
+# p7 = plot_safe_set(model_thompson, problem_gt, 50000)
 
-l = @layout [
-    a{0.3w} [grid(2, 3)]
-]
-p = plot(p1, p2, p3, p4, p5, p6, p7, layout=l, size=(800, 300),
-    left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
-# savefig("figs/AA275_bandit.pdf")
+# l = @layout [
+#     a{0.3w} [grid(2, 3)]
+# ]
+# p = plot(p1, p2, p3, p4, p5, p6, p7, layout=l, size=(800, 300),
+#     left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
+# # savefig("figs/AA275_bandit.pdf")
 
-# Comparison
-p1 = plot(collect(range(0, step=nsamps_indiv, length=501)), set_sizes_MILE[1:501],
-    label="LSE-GP", legend=:topleft, linetype=:steppre, color=:magenta, lw=2)
-plot!(p1, collect(0:50000), set_sizes_thompson[1:50001],
-    label="Threshold Bandit", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
-    xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), size=(380, 380),
-    ylims=(0, 2200), right_margin=8mm)
-# savefig("figs/AA275_comparison.pdf")
+# # Comparison
+# p1 = plot(collect(range(0, step=nsamps_indiv, length=501)), set_sizes_MILE[1:501],
+#     label="LSE-GP", legend=:topleft, linetype=:steppre, color=:magenta, lw=2)
+# plot!(p1, collect(0:50000), set_sizes_thompson[1:50001],
+#     label="Threshold Bandit", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
+#     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), size=(380, 380),
+#     ylims=(0, 2200), right_margin=8mm)
+# # savefig("figs/AA275_comparison.pdf")
 
 # Summary plots
 plot_method_compare(model_MILE, model_thompson,
