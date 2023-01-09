@@ -12,7 +12,7 @@ mycmap_small = ColorScheme([RGB{Float64}(0.25, 1.5 * 0.25, 2.0 * 0.25),
 include("../../src/multilevel_estimation.jl")
 include("../../src/montecarlo.jl")
 include("../../src/bandit.jl")
-# include("../../src/gittens.jl")
+include("../../src/gittens.jl")
 include("controller.jl")
 include("setup.jl")
 
@@ -62,6 +62,18 @@ model_random = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_
 set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps)
 
 p = plot(collect(0:nsamps), set_sizes_random, label="random", legend=:topleft, linetype=:steppre)
+
+# Gittens Allocation Index Acquistion
+nsamps = 50000
+model_gi = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+gi = BSON.load("src/gittens_data/ginew_100pullL200_beta99.bson")[:gi]
+gi_acquisition(model) = gittens_acquisition(model, problem.pfail_threshold, problem.conf_threshold, gi,
+    rand_argmax=true)
+set_sizes_gi = run_estimation!(model_gi, problem, gi_acquisition, nsamps)
+
+plot!(p, collect(0:nsamps), set_sizes_thompson, label="Gittens", legend=:topleft, linetype=:steppre,
+    xlabel="Number of Episodes", ylabel="Safe Set Size")
+
 
 # Thompson Sampling Acquistion
 nsamps = 50000
