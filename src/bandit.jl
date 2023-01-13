@@ -49,7 +49,7 @@ end
 Acquisition Functions
 """
 function to_params(model::BanditModel, sample_ind)
-    x = ind2x(model.grid, sample_ind)
+    x = GridInterpolations.ind2x(model.grid, sample_ind)
     params = rand.(Uniform.(max.(x .- model.widths, model.min_vals),
                             min.(x .+ model.widths, model.max_vals)))
     return params
@@ -134,6 +134,28 @@ function thompson_acquisition(model::BanditModel, pfail_threshold, conf_threshol
     return argmin(samps)
 end
 
+function dkwucb_acquisition(model::BanditModel, pfail_threshold, conf_threshold; δ=1.0,
+                            rand_argmax=false)
+    pvec = [cdf(Beta(α, β), pfail_threshold) for (α, β) in zip(model.α, model.β)]
+    N = model.α + model.β .- 2
+
+    vals = zeros(length(pvec))
+    for i = 1:length(pvec)
+        if pvec[i] > conf_threshold
+            vals[i] = -Inf
+        else 
+            vals[i] = N[i] == 0 ? pvec[i] + 1 : pvec[i] + √(log(2 / δ) / (2N[i]))
+        end
+    end
+
+    if rand_argmax
+        val = maximum(vals)
+        inds = findall(vals .== val)
+        return rand(inds)
+    else
+        return argmax(vals)
+    end
+end
 
 """
 Estimation Functions

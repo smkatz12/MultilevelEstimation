@@ -12,7 +12,7 @@ mycmap_small = ColorScheme([RGB{Float64}(0.25, 1.5 * 0.25, 2.0 * 0.25),
 include("../../src/multilevel_estimation.jl")
 include("../../src/montecarlo.jl")
 include("../../src/bandit.jl")
-include("../../src/gittens.jl")
+include("../../src/gittens_faster.jl")
 include("controller.jl")
 include("setup.jl")
 
@@ -31,8 +31,8 @@ function plot_eval_points(model::BanditModel)
     p = scatter(xs, ys, legend=false,
         markersize=0.5, markercolor=:black, markerstrokecolor=:black)
 
-    xs_eval = [ind2x(model.grid, i)[1] for i in unique(model.eval_inds)]
-    ys_eval = [ind2x(model.grid, i)[2] for i in unique(model.eval_inds)]
+    xs_eval = [GridInterpolations.ind2x(model.grid, i)[1] for i in unique(model.eval_inds)]
+    ys_eval = [GridInterpolations.ind2x(model.grid, i)[2] for i in unique(model.eval_inds)]
     scatter!(p, xs_eval, ys_eval,
         markersize=2.0, markercolor=:green, markerstrokecolor=:green,
         xlabel="σθ", ylabel="σω")
@@ -66,14 +66,17 @@ p = plot(collect(0:nsamps), set_sizes_random, label="random", legend=:topleft, l
 # Gittens Allocation Index Acquistion
 nsamps = 50000
 model_gi = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
-gi = BSON.load("src/gittens_data/ginew_100pullL200_beta99.bson")[:gi]
+gi = BSON.load("src/gittens_data/gibugfix_100pullL200_beta9999.bson")[:gi]
 gi_acquisition(model) = gittens_acquisition(model, problem.pfail_threshold, problem.conf_threshold, gi,
     rand_argmax=true)
 set_sizes_gi = run_estimation!(model_gi, problem, gi_acquisition, nsamps)
 
-plot!(p, collect(0:nsamps), set_sizes_thompson, label="Gittens", legend=:topleft, linetype=:steppre,
+plot!(p, collect(0:nsamps), set_sizes_gi, label="Gittens", legend=:topleft, linetype=:steppre,
     xlabel="Number of Episodes", ylabel="Safe Set Size")
 
+plot_eval_points(model_gi)
+to_heatmap(model_gi.grid, model_gi.α .+ model_gi.β, c=:thermal)
+plot(model_gi.eval_inds)
 
 # Thompson Sampling Acquistion
 nsamps = 50000
@@ -89,6 +92,19 @@ plot_eval_points(model_thompson)
 
 to_heatmap(model_random.grid, model_random.α .+ model_random.β, c=:thermal)
 to_heatmap(model_thompson.grid, model_thompson.α .+ model_thompson.β, c=:thermal)
+
+# DKWLCB
+nsamps = 50000
+model_dkwucb = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
+dkwucb_acquisition(model) = dkwucb_acquisition(model, problem.pfail_threshold, problem.conf_threshold,
+                                               δ=1.0, rand_argmax=true)
+set_sizes_dkwucb = run_estimation!(model_dkwucb, problem, dkwucb_acquisition, nsamps)
+
+plot_eval_points(model_dkwucb)
+to_heatmap(model_dkwucb.grid, model_dkwucb.α .+ model_dkwucb.β, c=:thermal)
+
+plot!(p, collect(0:nsamps), set_sizes_dkwucb, label="DKWUCB", legend=:topleft, linetype=:steppre,
+    xlabel="Number of Episodes", ylabel="Safe Set Size")
 
 function plot_summary_gt(model::BanditModel, problem::GriddedProblem, iter)
     eval_inds = model.eval_inds[1:iter]

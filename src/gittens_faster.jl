@@ -132,47 +132,47 @@ end
 #     gi.m = max.(gi.R + β * gi.T * gi.m, gi.m[sind])
 # end
 
-npulls = 100
-β = 0.99
-L = 200
-gi = GittensIndex(npulls, β, L)
+# npulls = 100
+# β = 0.9999
+# L = 200
+# gi = GittensIndex(npulls, β, L)
 
-@time calculate_gittens!(gi)
+# @time calculate_gittens!(gi)
 
-gi(2, 80)
-gi(2, 2)
+# gi(2, 80)
+# gi(2, 2)
 
-gi(2, 100)
+# gi(2, 100)
 
-function get_heat(x, y)
-    xi = convert(Int64, round(x))
-    yi = convert(Int64, round(y))
-    # if xi + yi >= gi.npulls
-    #     return 0.954
-    # else
-    if xi == 0 || yi == 0
-        return 0.954
-    else
-        return gi(xi, yi)
-    end
-end
+# function get_heat(x, y)
+#     xi = convert(Int64, round(x))
+#     yi = convert(Int64, round(y))
+#     # if xi + yi >= gi.npulls
+#     #     return 0.954
+#     # else
+#     if xi == 0 || yi == 0
+#         return 0.954
+#     else
+#         return gi(xi, yi)
+#     end
+# end
 
-heatmap(1:99, 1:99, get_heat, xlabel="α", ylabel="β")
+# heatmap(1:99, 1:99, get_heat, xlabel="α", ylabel="β")
 
-function get_heat_v2(x, y)
-    xi = convert(Int64, round(x))
-    yi = convert(Int64, round(y))
-    # if xi + yi >= gi.npulls
-    #     return 0.954
-    # else
-    if xi == 0 || yi == 0
-        return 0.954
-    else
-        return gi(xi, yi) > gi(1, 1)
-    end
-end
+# function get_heat_v2(x, y)
+#     xi = convert(Int64, round(x))
+#     yi = convert(Int64, round(y))
+#     # if xi + yi >= gi.npulls
+#     #     return 0.954
+#     # else
+#     if xi == 0 || yi == 0
+#         return 0.954
+#     else
+#         return gi(xi, yi) > gi(1, 1)
+#     end
+# end
 
-heatmap(1:99, 1:99, get_heat_v2, xlabel="α", ylabel="β")
+# heatmap(1:99, 1:99, get_heat_v2, xlabel="α", ylabel="β")
 
 # function make_matrix(gi)
 #     v = zeros(gi.npulls-1, gi.npulls-1)

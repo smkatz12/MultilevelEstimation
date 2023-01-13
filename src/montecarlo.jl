@@ -43,7 +43,7 @@ end
 """
 Acquisition Functions
 """
-to_params(model::MonteCarloModel, sample_ind) = ind2x(model.grid, sample_ind)
+to_params(model::MonteCarloModel, sample_ind) = GridInterpolations.ind2x(model.grid, sample_ind)
 
 mc_acquisition(model::MonteCarloModel) = model.curr_ind
 
@@ -53,7 +53,7 @@ Estimation Functions
 
 function estimate_from_pfail!(problem::GriddedProblem, model::MonteCarloModel)
     for i = 1:length(problem.grid)
-        params = ind2x(problem.grid, i)
+        params = GridInterpolations.ind2x(problem.grid, i)
         pfail = interpolate(model.grid, model.pfail, params)
         problem.is_safe[i] = pfail < problem.pfail_threshold
     end
@@ -61,7 +61,7 @@ end
 
 function estimate_from_counts!(problem::GriddedProblem, model::MonteCarloModel)
     for i = 1:length(problem.grid)
-        params = ind2x(problem.grid, i)
+        params = GridInterpolations.ind2x(problem.grid, i)
         α = interpolate(model.grid, model.α, params)
         β = interpolate(model.grid, model.β, params)
         problem.is_safe[i] = cdf(Beta(α, β), problem.pfail_threshold) > problem.conf_threshold
