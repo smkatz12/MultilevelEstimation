@@ -6,6 +6,7 @@ include("../../src/multilevel_estimation.jl")
 include("../../src/montecarlo.jl")
 include("../../src/gaussian_process.jl")
 include("../../src/bandit.jl")
+include("../../src/kernel_bandit.jl")
 include("controller.jl")
 include("setup.jl")
 include("pendulum_plotting.jl")
@@ -40,6 +41,18 @@ function pendulum_bandit_model(nθ, nω; σθ_max=0.2, σω_max=1.0)
     return BanditModel(grid)
 end
 
+function pendulum_kernel_bandit_model(nθ, nω; σθ_max=0.2, σω_max=1.0, 
+    ℓ=5e-3, w=[1.0, 0.04])
+    # Set up grid
+    σθs = collect(range(0, stop=σθ_max, length=nθ))
+    σωs = collect(range(0, stop=σω_max, length=nω))
+    grid = RectangleGrid(σθs, σωs)
+
+    W = diagm(w ./ norm(w))
+    k(x, x′) = wsqe_kernel(x - x′, W, ℓ=ℓ)
+    return KernelBanditModel(grid, k)
+end
+
 # Ground truth
 model_gt = BSON.load("examples/pendulum/results/ground_truth.bson")[:model]
 problem_gt = pendulum_problem(101, 101, σθ_max=0.2, σω_max=1.0, conf_threshold=0.95)
@@ -54,6 +67,11 @@ problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, conf_
 
 nsamps_indiv = 100
 nsamps_tot = 50000
+
+# Kernel Bandit
+model_kb = pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓ=1e-2)
+dkwucb_acquisition(model) = dkwucb_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
+set_sizes_kb = run_estimation!(model_kb, problem, dkwucb_acquisition, nsamps_tot, tuple_return=true)
 
 # res = BSON.load("/scratch/smkatz/AA275_data.bson")
 # model_random = res[:model_random]

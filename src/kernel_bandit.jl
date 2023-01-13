@@ -3,60 +3,148 @@ using GridInterpolations
 using Distributions
 using ProgressBars
 
-get_K(X, X′, k) = [k(x, x′) for x in X, x′ in X′]
-
-mutable struct KernelBanditModel
+"""
+Set Estimation Model
+"""
+mutable struct KernelBanditModel <: SetEstimationModel
     grid::RectangleGrid # Grid to evaluate on
+    nsamps::Int # Number of samples to run per grid point (planning for one)
+    eval_inds::Vector # Vector of points that got evaluated
+    eval_res::Vector # Vector of booleans corresponding to success or failure for each simulation
     α::Vector # Failure counts
     β::Vector # Success counts
-    kernel::Function # Kernel function
+    widths::Vector # Width in each dimension for each grid region
+    min_vals::Vector # Minimum of grid in each dimension
+    max_vals::Vector # Maximum of grid in each dimension
+    k::Function # Kernel function
     K::Matrix # Kernel matrix
-    KernelBanditModel(grid, α, β, kernel) = new(grid, α, β, kernel, get_K(grid, grid, kernel))
+    function KernelBanditModel(grid, k)
+        N = length(grid)
+        widths = [cps[2] - cps[1] for cps in grid.cutPoints]
+        min_vals = [cps[1] for cps in grid.cutPoints]
+        max_vals = [cps[end] for cps in grid.cutPoints]
+        X_pred = [X for X in grid]
+        K = get_K(X_pred, X_pred, k)
+        return new(grid, 1, Vector{Int64}(), Vector{Bool}(), ones(N), ones(N), widths,
+            min_vals, max_vals, k, K)
+    end
 end
 
-function run_estimation!(model::KernelBanditModel, problem::GriddedProblem, acquisition, nsamps;
-    log_every=Inf)
-    set_sizes = [0]
-    K_prob = get_K(problem.grid, model.grid, model.kernel)
+function reset!(model::KernelBanditModel)
+    model.eval_inds = Vector{Int64}()
+    model.eval_inds = Vector{Bool}()
+    N = length(model.grid)
+    model.α = ones(N)
+    model.β = ones(N)
+end
 
-    for i in ProgressBar(1:nsamps)
-        sample_ind = acquisition(model)
-        params = ind2x(model.grid, sample_ind)
-        res = problem.sim(params, 1)
-        nfail = sum(res)
+"""
+Logging
+"""
+function log!(model::KernelBanditModel, sample_ind, res)
+    push!(model.eval_inds, sample_ind)
+    push!(model.eval_res, res[1])
 
+    nfail = sum(res)
+    model.α[sample_ind] += nfail
+    model.β[sample_ind] += 1 - nfail
+end
 
-        model.α[sample_ind] += nfail
-        model.β[sample_ind] += 1 - nfail
+"""
+Acquisition Functions
+"""
+to_params(model::KernelBanditModel, sample_ind) = ind2x(model.grid, sample_ind)
 
-        if (i % log_every) == 0
-            estimate_from_est_counts!(problem, model, K_prob)
-            push!(set_sizes, sum(problem.is_safe))
+function gittens_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold, gi;
+    rand_argmax=false)
+    zvec = [quantile(Beta(α, β), conf_threshold) for (α, β) in zip(model.α, model.β)]
+
+    gis = zeros(length(zvec))
+    for i = 1:length(zvec)
+        if zvec[i] < pfail_threshold
+            gis[i] = -Inf
+        else
+            gis[i] = gi(convert(Int64, model.β[i]), convert(Int64, model.α[i]))
         end
     end
 
-    return set_sizes
+    if rand_argmax
+        val = maximum(gis)
+        inds = findall(gis .== val)
+        return rand(inds)
+    else
+        return argmax(gis)
+    end
 end
 
+function thompson_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold)
+    zvec = [quantile(Beta(α, β), conf_threshold) for (α, β) in zip(model.α, model.β)]
+    samps = [rand(Beta(α, β)) for (α, β) in zip(model.α, model.β)]
+    samps[zvec.<pfail_threshold] .= Inf
+    return argmin(samps)
+end
+
+function dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; δ=1.0,
+    rand_argmax=false)
+    pvec = [cdf(Beta(α, β), pfail_threshold) for (α, β) in zip(model.α, model.β)]
+    N = model.α + model.β .- 2
+
+    vals = zeros(length(pvec))
+    for i = 1:length(pvec)
+        if pvec[i] > conf_threshold
+            vals[i] = -Inf
+        else
+            vals[i] = N[i] == 0 ? pvec[i] + 1 : pvec[i] + √(log(2 / δ) / (2N[i]))
+        end
+    end
+
+    if rand_argmax
+        val = maximum(vals)
+        inds = findall(vals .== val)
+        return rand(inds)
+    else
+        return argmax(vals)
+    end
+end
+
+"""
+Estimation Functions
+"""
 function estimate_from_counts!(problem::GriddedProblem, model::KernelBanditModel)
     for i = 1:length(problem.grid)
         params = ind2x(problem.grid, i)
-        α = interpolate(model.grid, model.α, params)
-        β = interpolate(model.grid, model.β, params)
+        α, β = predict_beta(model, params)
         problem.is_safe[i] = cdf(Beta(α, β), problem.pfail_threshold) > problem.conf_threshold
     end
 end
 
 function estimate_from_est_counts!(problem::GriddedProblem, model::KernelBanditModel)
-    K = get_K(problem.grid, model.grid, model.kernel)
-    estimate_from_est_counts!(problem, model, K)
-end
-
-function estimate_from_est_counts!(problem::GriddedProblem, model::KernelBanditModel, K)
-    α_est = K * model.α .+ 1.0
-    β_est = K * model.β .+ 1.0
+    α_est = model.K * model.α
+    β_est = model.K * model.β
 
     for i = 1:length(problem.grid)
         problem.is_safe[i] = cdf(Beta(α_est[i], β_est[i]), problem.pfail_threshold) > problem.conf_threshold
     end
+end
+
+function safe_set_size(model::KernelBanditModel, pfail_threshold, conf_threshold)
+    sz_nokernel = sum([cdf(Beta(α, β), pfail_threshold) > conf_threshold for (α, β) in zip(model.α, model.β)])
+
+    α_est = model.K * model.α
+    β_est = model.K * model.β
+    sz_kernel = sum([cdf(Beta(α, β), pfail_threshold) > conf_threshold for (α, β) in zip(α_est, β_est)])
+    return (sz_nokernel, sz_kernel)
+end
+
+"""
+Kernel Bandit Specific Functions
+"""
+get_K(X, X′, k) = [k(x, x′) for x in X, x′ in X′]
+
+function predict_beta(model::KernelBanditModel, params)
+    s, p = interpolants(model.grid, params)
+    ind = s[argmax(p)]
+    α = model.α[ind]
+    β = model.β[ind]
+    return α, β
 end

@@ -14,8 +14,9 @@ end
 # Models for estimating safe set
 abstract type SetEstimationModel end
 
-function run_estimation!(model::SetEstimationModel, problem::GriddedProblem, acquisition, nsamps)
-    set_sizes = [0]
+function run_estimation!(model::SetEstimationModel, problem::GriddedProblem, acquisition, nsamps;
+    tuple_return=false)
+    set_sizes = tuple_return ? [(0, 0)] : [0]
     neval = convert(Int64, floor(nsamps / model.nsamps))
 
     for i in ProgressBar(1:neval)
