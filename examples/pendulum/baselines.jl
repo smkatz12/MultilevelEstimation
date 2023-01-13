@@ -55,6 +55,12 @@ problem = pendulum_problem(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, conf_
 nsamps_indiv = 100
 nsamps_tot = 50000
 
+# res = BSON.load("/scratch/smkatz/AA275_data.bson")
+# model_random = res[:model_random]
+# model_MILE = res[:model_MILE]
+# model_brandom = res[:model_brandom]
+# model_thompson = res[:model_thompson]
+
 # # GP random
 # model_random = pendulum_gp_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, nsamps=nsamps_indiv, ℓ=1e-2)
 # set_sizes_random = run_estimation!(model_random, problem, random_acquisition, nsamps_tot)
@@ -73,12 +79,6 @@ nsamps_tot = 50000
 # model_thompson = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
 # thompson_acquisition(model) = thompson_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 # set_sizes_thompson = run_estimation!(model_thompson, problem, thompson_acquisition, nsamps_tot)
-
-res = BSON.load("/scratch/smkatz/AA275_data.bson")
-model_random = res[:model_random]
-model_MILE = res[:model_MILE]
-model_brandom = res[:model_brandom]
-model_thompson = res[:model_thompson]
 
 # AA275 plots
 # GP Plot
