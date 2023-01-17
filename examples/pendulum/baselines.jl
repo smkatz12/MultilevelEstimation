@@ -73,6 +73,17 @@ model_kb = pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σ
 dkwucb_acquisition(model) = dkwucb_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 set_sizes_kb = run_estimation!(model_kb, problem, dkwucb_acquisition, nsamps_tot, tuple_return=true)
 
+set_sizes_nk = [s[1] for s in set_sizes_kb]
+set_sizes_k = [s[2] for s in set_sizes_kb]
+
+iter = 50000
+p1 = plot(collect(0:iter), set_sizes_nk,
+    label="No Kernel", legend=:topleft, linetype=:steppre, color=:gray, lw=2)
+plot!(p1, collect(0:iter), set_sizes_k,
+    label="Kernel", legend=:topleft, linetype=:steppre, color=:teal, lw=2,
+    xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 50000), ylims=(0, 1500),
+    xticks=[10000, 30000, 50000])
+
 # res = BSON.load("/scratch/smkatz/AA275_data.bson")
 # model_random = res[:model_random]
 # model_MILE = res[:model_MILE]

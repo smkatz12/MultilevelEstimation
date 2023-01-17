@@ -107,6 +107,32 @@ function dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, conf_thre
     end
 end
 
+function kernel_dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; δ=1.0,
+    rand_argmax=false)
+    α̂ = 1 .+ model.K * (model.α .- 1)
+    β̂ = 1 .+ model.K * (model.β .- 1)
+
+    pvec = [cdf(Beta(α, β), pfail_threshold) for (α, β) in zip(α̂, β̂)]
+    N = α̂ + β̂ .- 2
+
+    vals = zeros(length(pvec))
+    for i = 1:length(pvec)
+        if pvec[i] > conf_threshold + 0.3
+            vals[i] = -Inf
+        else
+            vals[i] = N[i] == 0 ? pvec[i] + 1 : pvec[i] + √(log(2 / δ) / (2N[i]))
+        end
+    end
+
+    if rand_argmax
+        val = maximum(vals)
+        inds = findall(vals .== val)
+        return rand(inds)
+    else
+        return argmax(vals)
+    end
+end
+
 """
 Estimation Functions
 """
@@ -119,8 +145,8 @@ function estimate_from_counts!(problem::GriddedProblem, model::KernelBanditModel
 end
 
 function estimate_from_est_counts!(problem::GriddedProblem, model::KernelBanditModel)
-    α_est = model.K * model.α
-    β_est = model.K * model.β
+    α_est = 1 .+ model.K * (model.α .- 1)
+    β_est = 1 .+ model.K * (model.β .- 1)
 
     for i = 1:length(problem.grid)
         problem.is_safe[i] = cdf(Beta(α_est[i], β_est[i]), problem.pfail_threshold) > problem.conf_threshold
