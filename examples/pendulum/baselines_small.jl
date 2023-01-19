@@ -164,25 +164,6 @@ g = create_kb_gif(model_kbrandom, problem_gt_small, set_sizes_nk, set_sizes_k,
 #     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 20000), ylims=(0, 130))
 # plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size")
 
-plot_eval_points(model_kbrandom)
-# plot_test_stats(model_kbrandom, problem_gt_small, use_kernel=false)
-# plot_test_stats(model_kbrandom, problem_gt_small, use_kernel=true)
-
-# iter = 200
-# plot_counts(model_kbrandom, problem_gt_small, model_kbrandom.K, iter, use_kernel=false)
-# plot_counts(model_kbrandom, problem_gt_small, model_kbrandom.K, iter, use_kernel=true)
-
-# plot_total_counts(model_kbrandom, problem_gt_small, model_kbrandom.K, iter, use_kernel=false)
-# plot_total_counts(model_kbrandom, problem_gt_small, model_kbrandom.K, iter, use_kernel=true)
-
-# plot_test_stats(model_kbrandom, problem_gt_small, model_kbrandom.K, iter, use_kernel=false)
-# plot_test_stats(model_kbrandom, problem_gt_small, model_kbrandom.K, iter, use_kernel=true)
-
-# w = [1.0, 0.04]
-# W = diagm(w ./ norm(w))
-# heatmap(collect(range(-0.2, stop=σθ_max, length=100)), collect(range(-1.0, stop=σω_max, length=100)),
-#     (x, y) -> wsqe_kernel([x, y], W, ℓ=2e-2))
-
 # Kernel Bandit DKWUCB
 nsamps_tot = 20000
 model_kb = pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓ=2e-2)
@@ -204,9 +185,6 @@ g = create_kb_gif(model_kb, problem_gt_small, set_sizes_nk, set_sizes_k,
 #     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 20000), ylims=(0, 130))
 # plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size")
 
-# plot_eval_points(model_kb)
-# plot_test_stats(model_kbrandom, problem_gt_small, use_kernel=false)
-# plot_test_stats(model_kbrandom, problem_gt_small, use_kernel=true)
 
 # Kernel Bandit Kernel DKWUCB
 model_kkb = pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓ=2e-2)
@@ -227,81 +205,3 @@ g = create_kb_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k,
 #     label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
 #     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 20000), ylims=(0, 130))
 # plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size")
-
-# plot_eval_points(model_kkb)
-# plot_test_stats(model_kkb, problem_gt_small, use_kernel=false)
-# plot_test_stats(model_kkb, problem_gt_small, use_kernel=true)
-
-# plot(model_kkb.eval_inds)
-
-# # Summary plot
-# iter = 20000
-# p1 = plot(collect(0:iter), set_sizes_nk,
-#     label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
-# plot!(p1, collect(0:iter), set_sizes_k,
-#     label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
-#     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 20000), ylims=(0, 150))
-# plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size",
-#       legend=false)
-
-# p2 = plot_eval_points(model_kkb, include_grid=false, xlabel="σθ")
-
-# p3 = plot_total_counts(model_kkb, problem_gt_small, model_kkb.K, iter, use_kernel=false, title="No Kernel")
-# p4 = plot_total_counts(model_kkb, problem_gt_small, model_kkb.K, iter, use_kernel=true, title="With Kernel")
-
-# p5 = plot_test_stats(model_kkb, problem_gt_small, model_kkb.K, iter, use_kernel=false)
-# p6 = plot_test_stats(model_kkb, problem_gt_small, model_kkb.K, iter, use_kernel=true)
-
-# p7 = plot_safe_set(model_kkb, problem_gt_small, iter, use_kernel=false, colorbar=true)
-# p8 = plot_safe_set(model_kkb, problem_gt_small, iter, use_kernel=true, colorbar=true)
-
-# # l = @layout [
-# #     a{0.5w} b{0.5w}
-# #     grid(2, 3)
-# # ]
-# # p = plot(p2, p1, p3, p5, p7, p4, p6, p8, layout=l, size=(1000, 800),
-# #     left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
-# p = plot(p2, p1, p3, p4, p5, p6, p7, p8, layout=(4, 2), size=(600, 800),
-#     left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
-
-# function plot_kb_summary(model::KernelBanditModel, problem::GriddedProblem, 
-#                          set_sizes_nk, set_sizes_k, iter; max_iter=20000)
-#     p1 = plot(collect(0:iter), set_sizes_nk[1:iter+1],
-#         label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
-#     plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
-#         label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
-#         xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, 150))
-#     plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size",
-#         legend=false)
-
-#     p2 = plot_eval_points(model, iter, include_grid=false, xlabel="σθ")
-
-#     p3 = plot_total_counts(model, problem, model.K, iter, use_kernel=false, title="Counts")
-#     p4 = plot_total_counts(model, problem, model.K, iter, use_kernel=true, title="With Kernel")
-
-#     p5 = plot_test_stats(model, problem, model.K, iter, use_kernel=false, title="Test Statistic")
-#     p6 = plot_test_stats(model, problem, model.K, iter, use_kernel=true, title="With Kernel")
-
-#     p7 = plot_safe_set(model, problem, iter, use_kernel=false, colorbar=true, title="Safe Set")
-#     p8 = plot_safe_set(model, problem, iter, use_kernel=true, colorbar=true, title="With Kernel")
-
-#     p = plot(p2, p1, p3, p4, p5, p6, p7, p8, layout=(4, 2), size=(600, 800),
-#         left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
-
-#     return p
-# end
-
-# iter = 1000
-# p = plot_kb_summary(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, iter)
-
-# function create_kb_gif(model::KernelBanditModel, problem::GriddedProblem, 
-#                        set_sizes_nk, set_sizes_k, filename; max_iter=20000, plt_every=100, fps=30)
-#     anim = @animate for iter in 1:plt_every:max_iter
-#         println(iter)
-#         plot_kb_summary(model, problem, set_sizes_nk, set_sizes_k, iter, max_iter=max_iter)
-#     end
-#     Plots.gif(anim, "figs/$filename", fps=fps)
-# end
-
-# g = create_kb_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, 
-#                   "kdkwucb_nofilter_short.gif", max_iter=5000, plt_every=25, fps=10)
