@@ -85,13 +85,13 @@ function thompson_acquisition(model::KernelBanditModel, pfail_threshold, conf_th
 end
 
 function dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; δ=1.0,
-    rand_argmax=false)
+    rand_argmax=false, buffer=0.0)
     pvec = [cdf(Beta(α, β), pfail_threshold) for (α, β) in zip(model.α, model.β)]
     N = model.α + model.β .- 2
 
     vals = zeros(length(pvec))
     for i = 1:length(pvec)
-        if pvec[i] > conf_threshold
+        if pvec[i] > conf_threshold + buffer
             vals[i] = -Inf
         else
             vals[i] = N[i] == 0 ? pvec[i] + 1 : pvec[i] + √(log(2 / δ) / (2N[i]))
@@ -108,7 +108,7 @@ function dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, conf_thre
 end
 
 function kernel_dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; δ=1.0,
-    rand_argmax=false)
+    rand_argmax=false, buffer=0.0)
     α̂ = 1 .+ model.K * (model.α .- 1)
     β̂ = 1 .+ model.K * (model.β .- 1)
 
@@ -117,7 +117,7 @@ function kernel_dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, co
 
     vals = zeros(length(pvec))
     for i = 1:length(pvec)
-        if pvec[i] > conf_threshold + 0.3
+        if pvec[i] > conf_threshold + buffer
             vals[i] = -Inf
         else
             vals[i] = N[i] == 0 ? pvec[i] + 1 : pvec[i] + √(log(2 / δ) / (2N[i]))
@@ -156,8 +156,8 @@ end
 function safe_set_size(model::KernelBanditModel, pfail_threshold, conf_threshold)
     sz_nokernel = sum([cdf(Beta(α, β), pfail_threshold) > conf_threshold for (α, β) in zip(model.α, model.β)])
 
-    α_est = model.K * model.α
-    β_est = model.K * model.β
+    α_est = 1 .+ model.K * (model.α .- 1)
+    β_est = 1 .+ model.K * (model.β .- 1)
     sz_kernel = sum([cdf(Beta(α, β), pfail_threshold) > conf_threshold for (α, β) in zip(α_est, β_est)])
     return (sz_nokernel, sz_kernel)
 end

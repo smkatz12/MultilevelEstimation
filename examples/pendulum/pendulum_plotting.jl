@@ -71,8 +71,8 @@ function plot_eval_points(model::Union{BanditModel, KernelBanditModel}, iter; in
     #     markersize=0.5, marker=:c, msw=0, #markerstrokecolor=:white,
     #     xlabel="σθ", ylabel="σω", legend=false,
     #     xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
-    p = scatter(xs_eval, ys_eval, zcolor=neval, c=:blues, clims=(1, 30),
-        markersize=0.8, marker=:c, msw=0, #markerstrokecolor=:white,
+    p = scatter(xs_eval, ys_eval, zcolor=neval, c=:thermal, clims=(1, 30),
+        markersize=4.0, marker=:c, msw=0, #markerstrokecolor=:white,
         ylabel="σω", legend=false,
         xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
 
@@ -164,7 +164,93 @@ function plot_safe_set(model::BanditModel, problem_gt::GriddedProblem, iter; kwa
 end
 
 function plot_safe_set(model::BanditModel, problem_gt::GriddedProblem; kwargs...)
-    return plot_safe_set(model, problem_gt, length(model.eval_inds))
+    return plot_safe_set(model, problem_gt, length(model.eval_inds); kwargs...)
+end
+
+# Kernel Bandit
+function plot_safe_set(model::KernelBanditModel, problem_gt::GriddedProblem, iter; use_kernel=false, kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_res = model.eval_res[1:iter]
+
+    αs = zeros(length(model.grid))
+    βs = zeros(length(model.grid))
+    for i = 1:length(model.grid)
+        eval_inds_inds = findall(eval_inds .== i)
+        neval = length(eval_inds_inds)
+        if neval > 0
+            αs[i] = 1 + sum(eval_res[eval_inds_inds])
+            βs[i] = 2 + neval - αs[i]
+        else
+            αs[i] = 1
+            βs[i] = 1
+        end
+    end
+    if use_kernel
+        αs = 1 .+ model.K * (αs .- 1)
+        βs = 1 .+ model.K * (βs .- 1)
+    end
+
+    is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem.conf_threshold for (α, β) in zip(αs, βs)]
+
+    colors = zeros(length(is_safe))
+    FN_inds = findall(.!is_safe .& problem_gt.is_safe)
+    !isnothing(FN_inds) ? colors[FN_inds] .= 0.25 : nothing
+    TN_inds = findall(.!is_safe .& .!problem_gt.is_safe)
+    !isnothing(TN_inds) ? colors[TN_inds] .= 0.75 : nothing
+    FP_inds = findall(is_safe .& .!problem_gt.is_safe)
+    !isnothing(FP_inds) ? colors[FP_inds] .= 0.5 : nothing
+
+    if sum(is_safe) > 0
+        p2 = to_heatmap(model.grid, colors,
+            c=cgrad(mycmap, 4, categorical=true), colorbar=:none,
+            xlabel="σθ", ylabel="σω"; kwargs...)
+    else
+        p2 = to_heatmap(model.grid, colors,
+            c=cgrad(mycmap_small, 2, categorical=true), colorbar=:none,
+            xlabel="σθ", ylabel="σω"; kwargs...)
+    end
+
+    return p2
+end
+
+function plot_safe_set(model::KernelBanditModel, problem_gt::GriddedProblem; use_kernel=false, kwargs...)
+    return plot_safe_set(model, problem_gt, length(model.eval_inds); use_kernel=use_kernel, kwargs...)
+end
+
+function plot_kb_summary(model::KernelBanditModel, problem::GriddedProblem,
+    set_sizes_nk, set_sizes_k, iter; max_iter=20000)
+    p1 = plot(collect(0:iter), set_sizes_nk[1:iter+1],
+        label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
+    plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
+        label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
+        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, 150))
+    plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size",
+        legend=false)
+
+    p2 = plot_eval_points(model, iter, include_grid=false, xlabel="σθ")
+
+    p3 = plot_total_counts(model, problem, model.K, iter, use_kernel=false, title="Counts")
+    p4 = plot_total_counts(model, problem, model.K, iter, use_kernel=true, title="With Kernel")
+
+    p5 = plot_test_stats(model, problem, model.K, iter, use_kernel=false, title="Test Statistic")
+    p6 = plot_test_stats(model, problem, model.K, iter, use_kernel=true, title="With Kernel")
+
+    p7 = plot_safe_set(model, problem, iter, use_kernel=false, colorbar=true, title="Safe Set")
+    p8 = plot_safe_set(model, problem, iter, use_kernel=true, colorbar=true, title="With Kernel")
+
+    p = plot(p2, p1, p3, p4, p5, p6, p7, p8, layout=(4, 2), size=(600, 800),
+        left_margin=3mm, bottom_margin=3.7mm, titlefontsize=10)
+
+    return p
+end
+
+function create_kb_gif(model::KernelBanditModel, problem::GriddedProblem,
+    set_sizes_nk, set_sizes_k, filename; max_iter=20000, plt_every=100, fps=30)
+    anim = @animate for iter in 1:plt_every:max_iter
+        println(iter)
+        plot_kb_summary(model, problem, set_sizes_nk, set_sizes_k, iter, max_iter=max_iter)
+    end
+    Plots.gif(anim, "figs/$filename", fps=fps)
 end
 
 """ GP specific plots """
@@ -361,7 +447,7 @@ function plot_total_counts(model::KernelBanditModel, problem_gt::GriddedProblem,
         βs = 1 .+ K * (βs .- 1)
     end
 
-    p1 = to_heatmap(model.grid, αs + βs, xlabel="σθ", ylabel="σω", title="α"; kwargs...)
+    p1 = to_heatmap(model.grid, αs + βs, xlabel="σθ", ylabel="σω"; kwargs...)
 
     return p1
 end
