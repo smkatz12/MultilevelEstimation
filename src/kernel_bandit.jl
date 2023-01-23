@@ -133,6 +133,86 @@ function kernel_dkwucb_acquisition(model::KernelBanditModel, pfail_threshold, co
     end
 end
 
+function max_improve_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; ρ=2.0,
+    rand_argmax=false)
+
+    α, β = model.α, model.β
+    
+    vals = zeros(length(α))
+    for i = 1:length(vals)
+        pfail = α[i] / (α[i] + β[i])
+        αfail = copy(α)
+        αfail[i] += 1
+        scorefail = score(model, αfail, β, pfail_threshold, conf_threshold, ρ=ρ)
+        
+        psucceed = 1 - pfail
+        βsucceed = copy(β)
+        βsucceed[i] += 1
+        scoresucceed = score(model, α, βsucceed, pfail_threshold, conf_threshold, ρ=ρ)
+        
+        vals[i] = pfail * scorefail + psucceed * scoresucceed
+    end
+
+    if rand_argmax
+        val = maximum(vals)
+        inds = findall(vals .== val)
+        return rand(inds)
+    else
+        return argmax(vals)
+    end
+end
+
+function faster_max_improve_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; ρ=2.0,
+    rand_argmax=false)
+
+    α, β = model.α, model.β
+    curr_α_est = 1 .+ model.K * (α .- 1)
+    curr_β_est = 1 .+ model.K * (β .- 1)
+    
+    vals = zeros(length(α))
+    for i = 1:length(vals)
+        pfail = α[i] / (α[i] + β[i])
+        scorefail = score(model, curr_α_est, curr_β_est, i, true, pfail_threshold, conf_threshold, ρ=ρ)
+        
+        psucceed = 1 - pfail
+
+        scoresucceed = score(model, curr_α_est, curr_β_est, false, conf_threshold, ρ=ρ)
+        
+        vals[i] = pfail * scorefail + psucceed * scoresucceed
+    end
+
+    if rand_argmax
+        val = maximum(vals)
+        inds = findall(vals .== val)
+        return rand(inds)
+    else
+        return argmax(vals)
+    end
+end
+
+function optim_max_improve_acquisition(model::KernelBanditModel, pfail_threshold, conf_threshold; ρ=2.0,
+    rand_argmax=false)
+
+    α, β = model.α, model.β
+    curr_α_est = 1 .+ model.K * (α .- 1)
+    curr_β_est = 1 .+ model.K * (β .- 1)
+
+    vals = zeros(length(α))
+    for i = 1:length(vals)
+        psucceed = curr_α_est[i] / (curr_α_est[i] + curr_β_est[i])
+        scoresucceed = score(model, curr_α_est, curr_β_est, false, conf_threshold, ρ=ρ)
+        vals[i] = psucceed * scoresucceed
+    end
+
+    if rand_argmax
+        val = maximum(vals)
+        inds = findall(vals .== val)
+        return rand(inds)
+    else
+        return argmax(vals)
+    end
+end
+
 """
 Estimation Functions
 """
@@ -173,4 +253,26 @@ function predict_beta(model::KernelBanditModel, params)
     α = model.α[ind]
     β = model.β[ind]
     return α, β
+end
+
+function score(model::KernelBanditModel, α, β, pfail_threshold, conf_threshold; ρ=2.0)
+    α_est = 1 .+ model.K * (α .- 1)
+    β_est = 1 .+ model.K * (β .- 1)
+
+    scores = [cdf(Beta(α₀, β₀), pfail_threshold) for (α₀, β₀) in zip(α_est, β_est)]
+    scores[scores .> conf_threshold] .= ρ
+
+    return sum(scores)
+end
+
+function score(model::KernelBanditModel, curr_α_est, curr_β_est, n, fail, pfail_threshold, 
+    conf_threshold; ρ=2.0)
+
+    α_est = fail ? curr_α_est + model.K[:, n] : curr_α_est
+    β_est = fail ? curr_β_est : curr_β_est + model.K[:, n]
+
+    scores = [cdf(Beta(α₀, β₀), pfail_threshold) for (α₀, β₀) in zip(α_est, β_est)]
+    scores[scores .> conf_threshold] .= ρ
+
+    return sum(scores)
 end

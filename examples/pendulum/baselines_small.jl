@@ -148,13 +148,35 @@ plot!(p1, collect(range(0, step=nsamps_indiv, length=iter + 1)), set_sizes_MILE[
 
 # Kernel Bandit Random
 model_kbrandom = pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓ=ℓ)
-set_sizes_kbrandom = run_estimation!(model_kbrandom, problem, random_acquisition, nsamps_tot, tuple_return=true)
+#set_sizes_kbrandom = run_estimation!(model_kbrandom, problem, random_acquisition, nsamps_tot, tuple_return=true)
+set_sizes_kbrandom = run_estimation!(model_kbrandom, problem, random_acquisition, 1000, tuple_return=true)
+
+# # Max improv timing
+# @time s = score(model_kbrandom, model_kbrandom.α, model_kbrandom.β, problem_gt_small.pfail_threshold,
+#     problem_gt_small.conf_threshold)
+# @time mi_ind = max_improve_acquisition(model_kbrandom, problem_gt_small.pfail_threshold,
+#     problem_gt_small.conf_threshold)
+
+# curr_α_est = 1 .+ model_kbrandom.K * (model_kbrandom.α .- 1)
+# curr_β_est = 1 .+ model_kbrandom.K * (model_kbrandom.β .- 1)
+
+# @time score(model_kbrandom, curr_α_est, curr_β_est, 1, true, problem_gt_small.pfail_threshold,
+#     problem_gt_small.conf_threshold)
+
+# αfail = copy(model_kbrandom.α)
+# αfail[1] += 1
+
+# @time score(model_kbrandom, αfail, model_kbrandom.β, problem_gt_small.pfail_threshold,
+#     problem_gt_small.conf_threshold)
+
+# @time mi_ind = faster_max_improve_acquisition(model_kbrandom, problem_gt_small.pfail_threshold,
+#     problem_gt_small.conf_threshold)
 
 set_sizes_nk = [s[1] for s in set_sizes_kbrandom]
 set_sizes_k = [s[2] for s in set_sizes_kbrandom]
 
-g = create_kb_gif(model_kbrandom, problem_gt_small, set_sizes_nk, set_sizes_k, 
-                  "random_short.gif", max_iter=5000, plt_every=25, fps=10)
+g = create_kb_gif(model_kbrandom, problem_gt_small, set_sizes_nk, set_sizes_k,
+    "random_short.gif", max_iter=5000, plt_every=25, fps=10)
 
 # iter = 20000
 # p1 = plot(collect(0:iter), set_sizes_nk,
@@ -205,3 +227,70 @@ g = create_kb_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k,
 #     label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
 #     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, 20000), ylims=(0, 130))
 # plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size")
+
+# Max Improvement Acquisition
+model_mi = pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓ=2e-2)
+max_improve_acquisition(model) = optim_max_improve_acquisition(model, problem.pfail_threshold,
+    problem.conf_threshold, ρ=2.0, rand_argmax=true)
+set_sizes_mi = run_estimation!(model_mi, problem, max_improve_acquisition, 2000, tuple_return=true)
+
+set_sizes_nk = [s[1] for s in set_sizes_mi]
+set_sizes_k = [s[2] for s in set_sizes_mi]
+
+g = create_kb_gif(model_mi, problem_gt_small, set_sizes_nk, set_sizes_k,
+    "optimmaximprove_short2000.gif", max_iter=2000, plt_every=25, fps=10)
+
+plot(model_mi.eval_inds)
+
+function get_heat(x, y)
+    sps, ps = interpolants(model_mi.grid, [x, y])
+    ind = sps[argmax(ps)]
+
+    curr_α_est = 1 .+ model_mi.K * (model_mi.α .- 1)
+    curr_β_est = 1 .+ model_mi.K * (model_mi.β .- 1)
+
+    scorefail = score(model_mi, curr_α_est, curr_β_est, ind, true, problem_gt_small.pfail_threshold,
+        problem_gt_small.conf_threshold, ρ=2.0)
+    scoresucceed = score(model_mi, curr_α_est, curr_β_est, ind, false, problem_gt_small.pfail_threshold,
+        problem_gt_small.conf_threshold, ρ=2.0)
+
+    # pfail = model_mi.α[ind] / (model_mi.α[ind] + model_mi.β[ind])
+    pfail = curr_α_est[ind] / (curr_α_est[ind] + curr_β_est[ind])
+    psucceed = 1 - pfail
+
+    return pfail * scorefail + psucceed * scoresucceed
+    #return psucceed * scoresucceed
+end
+
+heatmap(problem_gt_small.grid_points[:σθs], problem_gt_small.grid_points[:σωs],
+    (x, y) -> get_heat(x, y))
+
+x = 0.06
+y = 0.5
+
+sps, ps = interpolants(model_mi.grid, [x, y])
+ind = sps[argmax(ps)]
+
+curr_α_est = 1 .+ model_mi.K * (model_mi.α .- 1)
+curr_β_est = 1 .+ model_mi.K * (model_mi.β .- 1)
+
+scorefail = score(model_mi, curr_α_est, curr_β_est, ind, true, problem_gt_small.pfail_threshold,
+    problem_gt_small.conf_threshold, ρ=2.0)
+scoresucceed = score(model_mi, curr_α_est, curr_β_est, ind, false, problem_gt_small.pfail_threshold,
+    problem_gt_small.conf_threshold, ρ=2.0)
+
+pfail = curr_α_est[ind] / (curr_α_est[ind] + curr_β_est[ind])
+psucceed = 1 - pfail
+
+val = pfail * scorefail + psucceed * scoresucceed
+
+curr_score = score(model_mi, model_mi.α, model_mi.β, problem_gt_small.pfail_threshold,
+    problem_gt_small.conf_threshold)
+
+score1 = score(model_mi, curr_α_est, curr_β_est, 41, false, problem_gt_small.pfail_threshold,
+    problem_gt_small.conf_threshold, ρ=2.0)
+score2 = score(model_mi, curr_α_est, curr_β_est, 217, false, problem_gt_small.pfail_threshold,
+    problem_gt_small.conf_threshold, ρ=2.0)
+
+to_heatmap(model_mi.grid, score1)
+to_heatmap(model_mi.grid, score2)
