@@ -456,6 +456,29 @@ function plot_total_counts(model::KernelBanditModel, problem_gt::GriddedProblem;
     return plot_total_counts(model, problem_gt, model.K, length(model.eval_inds); use_kernel=use_kernel, kwargs...)
 end
 
+function plot_ℓdist(model::KernelBanditModel, iter; kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_res = model.eval_res[1:iter]
+    
+    αs = zeros(length(model.grid))
+    βs = zeros(length(model.grid))
+    for i = 1:length(model.grid)
+        eval_inds_inds = findall(eval_inds .== i)
+        neval = length(eval_inds_inds)
+        if neval > 0
+            αs[i] = 1 + sum(eval_res[eval_inds_inds])
+            βs[i] = 2 + neval - αs[i]
+        else
+            αs[i] = 1
+            βs[i] = 1
+        end
+    end
+    if use_kernel
+        αs = 1 .+ K * (αs .- 1)
+        βs = 1 .+ K * (βs .- 1)
+    end
+end
+
 """ GP Bandit Comparison """
 function plot_method_compare(model_gp::GaussianProcessModel, model_bandit::BanditModel,
     set_sizes_gp, set_sizes_bandit,

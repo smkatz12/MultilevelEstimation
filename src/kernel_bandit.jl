@@ -323,7 +323,7 @@ function log_p(model::KernelBanditModel, K)
     βₖs = 1 .+ K * (model.β .- 1)
 
     # Compute probability of sucess/failure
-    p_D = [log(p_αβ(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(model.α, model.β, αₖs, βₖs)]
+    p_D = [log(p_αβ(α, β, αₖ, βₖ) + eps()) for (α, β, αₖ, βₖ) in zip(model.α, model.β, αₖs, βₖs)]
 
     return sum(p_D)
 end

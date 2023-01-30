@@ -120,3 +120,4 @@ end
 
 compute_fpr(model_kbrandom, problem_gt_small, model_kbrandom.curr_ℓ)
 compute_fpr(model_kkb, problem_gt_small, model_kkb.curr_ℓ)
+
