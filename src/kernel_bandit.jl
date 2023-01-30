@@ -16,26 +16,47 @@ mutable struct KernelBanditModel <: SetEstimationModel
     widths::Vector # Width in each dimension for each grid region
     min_vals::Vector # Minimum of grid in each dimension
     max_vals::Vector # Maximum of grid in each dimension
-    k::Function # Kernel function
+    curr_ℓ::Float64
     K::Matrix # Kernel matrix
-    function KernelBanditModel(grid, k)
+    ℓs::Vector
+    Ks::Vector # Kernel matrix for all possible ℓs
+    ℓconf::Float64 # Confidence interval for ℓ
+    ℓests::Vector # Estimate of ℓ at each evaluation
+    function KernelBanditModel(grid, k, curr_ℓ; ℓmin=1e-4, ℓmax=1e-2, nbins=100, ℓconf=0.95)
         N = length(grid)
         widths = [cps[2] - cps[1] for cps in grid.cutPoints]
         min_vals = [cps[1] for cps in grid.cutPoints]
         max_vals = [cps[end] for cps in grid.cutPoints]
         X_pred = [X for X in grid]
         K = get_K(X_pred, X_pred, k)
+        ℓs, Ks = get_Ks(grid; ℓmin=ℓmin, ℓmax=ℓmax, nbins=nbins)
         return new(grid, 1, Vector{Int64}(), Vector{Bool}(), ones(N), ones(N), widths,
-            min_vals, max_vals, k, K)
+            min_vals, max_vals, curr_ℓ, K, ℓs, Ks, ℓconf, Vector{Float64}())
+    end
+    function KernelBanditModel(grid; ℓmin=1e-4, ℓmax=1e-2, nbins=100, ℓconf=0.95)
+        N = length(grid)
+        widths = [cps[2] - cps[1] for cps in grid.cutPoints]
+        min_vals = [cps[1] for cps in grid.cutPoints]
+        max_vals = [cps[end] for cps in grid.cutPoints]
+        ℓs, Ks = get_Ks(grid; ℓmin=ℓmin, ℓmax=ℓmax, nbins=nbins)
+        q = convert(Int64, floor((1 - ℓconf) * nbins))
+        K = Ks[q]
+        curr_ℓ = ℓs[q]
+        return new(grid, 1, Vector{Int64}(), Vector{Bool}(), ones(N), ones(N), widths,
+            min_vals, max_vals, curr_ℓ, K, ℓs, Ks, ℓconf, Vector{Float64}())
     end
 end
 
 function reset!(model::KernelBanditModel)
     model.eval_inds = Vector{Int64}()
-    model.eval_inds = Vector{Bool}()
+    model.eval_res = Vector{Bool}()
     N = length(model.grid)
     model.α = ones(N)
     model.β = ones(N)
+    model.ℓests = Vector{Float64}()
+    q = convert(Int64, floor((1 - model.ℓconf) * length(model.ℓs)))
+    model.K = model.Ks[q]
+    model.curr_ℓ = model.ℓs[q]
 end
 
 """
@@ -44,6 +65,7 @@ Logging
 function log!(model::KernelBanditModel, sample_ind, res)
     push!(model.eval_inds, sample_ind)
     push!(model.eval_res, res[1])
+    push!(model.ℓests, model.curr_ℓ)
 
     nfail = sum(res)
     model.α[sample_ind] += nfail
@@ -247,6 +269,15 @@ Kernel Bandit Specific Functions
 """
 get_K(X, X′, k) = [k(x, x′) for x in X, x′ in X′]
 
+function get_Ks(grid::RectangleGrid; w=[1.0, 0.04], ℓmin=1e-4, ℓmax=1e-2, nbins=200)
+    X_pred = [X for X in grid]
+    W = diagm(w ./ norm(w))
+
+    ℓs = collect(range(ℓmin, stop=ℓmax, length=nbins))
+    Ks = [get_K(X_pred, X_pred, (x, x′) -> wsqe_kernel(x - x′, W, ℓ=ℓ)) for ℓ in ℓs]
+    return ℓs, Ks
+end
+
 function predict_beta(model::KernelBanditModel, params)
     s, p = interpolants(model.grid, params)
     ind = s[argmax(p)]
@@ -275,4 +306,43 @@ function score(model::KernelBanditModel, curr_α_est, curr_β_est, n, fail, pfai
     scores[scores .> conf_threshold] .= ρ
 
     return sum(scores)
+end
+
+"""
+Kernel Estimation Functions
+"""
+function p_αβ(α, β, αₖ, βₖ; nθ=100)
+    dist = Beta(αₖ, βₖ)
+    terms = [θ^α * (1 - θ)^β * pdf(dist, θ) for θ in range(0.0, stop=1.0, length=nθ)]
+    return (1 / nθ) * sum(terms)
+end
+
+function log_p(model::KernelBanditModel, K)
+    # Compute estimated pseudocounts
+    αₖs = 1 .+ K * (model.α .- 1)
+    βₖs = 1 .+ K * (model.β .- 1)
+
+    # Compute probability of sucess/failure
+    p_D = [log(p_αβ(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(model.α, model.β, αₖs, βₖs)]
+
+    return sum(p_D)
+end
+
+function pℓ(model::KernelBanditModel)
+    log_ps = [log_p(model, K) for K in model.Ks]
+    lsume = logsumexp(log_ps)
+    log_pℓs = log_ps .- lsume
+    pℓs = exp.(log_pℓs)
+    return pℓs
+end
+
+function update_kernel!(model::KernelBanditModel)
+    # Compute pℓ
+    pℓs = pℓ(model)
+    # Get quantile
+    dist = Categorical(pℓs)
+    q = quantile(dist, 1 - model.ℓconf)
+    # Update K
+    model.K = model.Ks[q]
+    model.curr_ℓ = model.ℓs[q]
 end

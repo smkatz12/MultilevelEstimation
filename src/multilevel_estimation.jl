@@ -15,7 +15,7 @@ end
 abstract type SetEstimationModel end
 
 function run_estimation!(model::SetEstimationModel, problem::GriddedProblem, acquisition, nsamps;
-    tuple_return=false)
+    tuple_return=false, update_kernel_every=Inf)
     set_sizes = tuple_return ? [(0, 0)] : [0]
     neval = convert(Int64, floor(nsamps / model.nsamps))
 
@@ -29,6 +29,9 @@ function run_estimation!(model::SetEstimationModel, problem::GriddedProblem, acq
 
         # Log internally
         log!(model, sample_ind, res)
+
+        # Update kernel
+        (i % update_kernel_every) == 0 ? update_kernel!(model) : nothing
 
         # Log safe set size
         sz = safe_set_size(model, problem.pfail_threshold, problem.conf_threshold)
