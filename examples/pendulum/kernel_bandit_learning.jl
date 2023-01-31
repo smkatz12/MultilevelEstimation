@@ -85,7 +85,7 @@ reset!(model_kkb)
 kernel_dkwucb_acquisition(model) = kernel_dkwucb_acquisition(model, problem.pfail_threshold,
     problem.conf_threshold, rand_argmax=true, buffer=0.0)
 set_sizes_kkb = run_estimation!(model_kkb, problem, kernel_dkwucb_acquisition, 20000,
-    tuple_return=true, update_kernel_every=500)
+    tuple_return=true, update_kernel_every=10)
 
 plot(collect(1:20000), model_kkb.ℓests, xlabel="Number of Episodes", ylabel="ℓ",
     color=:magenta, lw=2, legend=false)
@@ -118,6 +118,92 @@ function compute_fpr(model::KernelBanditModel, problem_gt::GriddedProblem, ℓ; 
     return isnothing(FP_inds) ? 0.0 : length(FP_inds) / length(is_safe)
 end
 
-compute_fpr(model_kbrandom, problem_gt_small, model_kbrandom.curr_ℓ)
 compute_fpr(model_kkb, problem_gt_small, model_kkb.curr_ℓ)
 
+create_kb_learning_gif(model_kbrandom, problem_gt_small, set_sizes_nk, set_sizes_k, "random_learning.gif",
+    max_iter=15000, plt_every=200, fps=10)
+
+create_kb_learning_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, "kkb_ldrop_learning.gif",
+    max_iter=18000, plt_every=200, fps=10)
+
+plot_ℓdist(model_kkb, 16000)
+plot_kb_learning_summary(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, 16000)
+
+
+nothing 
+# # Messing with integral computation
+# function p_αβ_exact(α, β, αₖ, βₖ)
+#     n, m = α, α + β
+#     nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
+#     numerator = gamma(mₖ + 2) * gamma(nₖ + n + 1) * gamma(mₖ - nₖ + m - n + 1)
+#     denominator = gamma(nₖ + 1) * gamma(mₖ - nₖ + 1) * gamma(mₖ + m + 2)
+#     return numerator / denominator
+# end
+
+# function p_αβ2(α, β, αₖ, βₖ; nθ=100)
+#     dist = Beta(αₖ, βₖ)
+#     terms = [θ^α * (1 - θ)^β * pdf(dist, θ) for θ in collect(range(0.0, stop=1.0, length=nθ))[1:end-1]]
+#     return (1 / nθ) * sum(terms)
+# end
+
+# function p_αβ3(α, β, αₖ, βₖ; nθ=100)
+#     function my_beta(α, β, θ)
+#         num = gamma(α + β)
+#         denom = gamma(α) * gamma(β)
+#         return (num / denom) * θ^(α-1) * (1 - θ)^(β - 1)
+#     end
+#     terms = [θ^α * (1 - θ)^β * my_beta(αₖ, βₖ, θ) for θ in collect(range(0.0, stop=1.0, length=nθ))[1:end-1]]
+#     return (1 / nθ) * sum(terms)
+# end
+
+# α, β, αₖ, βₖ = 2, 2, 4, 4
+# p_αβ(α, β, αₖ, βₖ, nθ=1000)
+# p_αβ2(α, β, αₖ, βₖ, nθ=1000)
+# p_αβ3(α, β, αₖ, βₖ, nθ=100000)
+# test = p_αβ_exact(α, β, αₖ, βₖ)
+# log(test)
+# logp_αβ(α, β, αₖ, βₖ)
+
+# nothing
+
+# compute_fpr(model_kbrandom, problem_gt_small, model_kbrandom.curr_ℓ)
+# compute_fpr(model_kkb, problem_gt_small, model_kkb.curr_ℓ)
+
+# @time plot_ℓdist(model_kbrandom, 200, title="")
+
+# iter=18000
+# max_iter=20000
+# p1 = plot(collect(0:iter), set_sizes_nk[1:iter+1],
+#     label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
+# plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
+#     label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
+#     xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, 150))
+# plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size",
+#     legend=false, title="Safe Set Size")
+
+# p2 = plot_eval_points(model_kkb, iter, include_grid=false, xlabel="σθ")
+
+# curr_K = model_kkb.Ks[findfirst(model_kkb.ℓs .== model_kkb.ℓests[iter])]
+# p3 = plot_total_counts(model_kkb, problem_gt_small, curr_K, iter, use_kernel=true, title="Total Counts")
+# p4 = plot_test_stats(model_kkb, problem_gt_small, curr_K, iter, use_kernel=true, title="Test Statistic")
+# p5 = plot_ℓdist(model_kkb, iter, title="Distribution over Kernel")
+# p6 = plot_safe_set(model_kkb, problem_gt_small, iter, use_kernel=true, title="Safe Set Estimate")
+
+# p = plot(p1, p3, p5, p2, p4, p6, layout=(2, 3), size=(900, 500), left_margin=3mm)
+
+
+
+# plot_kb_learning_summary(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, 1800)
+
+# p_D = log_p(model_kbrandom, model_kbrandom.Ks[end], model_kbrandom.α, model_kbrandom.β)
+# minimum(p_D)
+# findfirst(isnan.(p_D))
+
+# αₖs = 1 .+ model_kbrandom.Ks[end] * (model_kbrandom.α .- 1)
+# βₖs = 1 .+ model_kbrandom.Ks[end] * (model_kbrandom.β .- 1)
+
+# αₖs[45]
+# βₖs[45]
+
+# model_kbrandom.α[45], model_kbrandom.β[45], αₖs[45], βₖs[45]
+# p_αβ_exact(model_kbrandom.α[45], model_kbrandom.β[45], αₖs[45], βₖs[45])

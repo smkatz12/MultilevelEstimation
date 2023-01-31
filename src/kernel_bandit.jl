@@ -317,19 +317,47 @@ function p_αβ(α, β, αₖ, βₖ; nθ=100)
     return (1 / nθ) * sum(terms)
 end
 
+function p_αβ_exact(α, β, αₖ, βₖ)
+    n, m = α, α + β
+    nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
+    numerator = gamma(mₖ + 2) * gamma(nₖ + n + 1) * gamma(mₖ - nₖ + m - n + 1)
+    println(gamma(nₖ + n + 1))
+    denominator = gamma(nₖ + 1) * gamma(mₖ - nₖ + 1) * gamma(mₖ + m + 2)
+    println(denominator)
+    p = numerator / denominator
+    return p
+end
+
+function logp_αβ(α, β, αₖ, βₖ)
+    n, m = α, α + β
+    nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
+    numerator = loggamma(mₖ + 2) + loggamma(nₖ + n + 1) + loggamma(mₖ - nₖ + m - n + 1)
+    denominator = loggamma(nₖ + 1) + loggamma(mₖ - nₖ + 1) + loggamma(mₖ + m + 2)
+    logp = numerator - denominator
+    return logp
+end
+
 function log_p(model::KernelBanditModel, K)
+    return log_p(model, K, model.α, model.β)
+end
+
+function log_p(model::KernelBanditModel, K, αs, βs)
     # Compute estimated pseudocounts
-    αₖs = 1 .+ K * (model.α .- 1)
-    βₖs = 1 .+ K * (model.β .- 1)
+    αₖs = 1 .+ K * (αs .- 1)
+    βₖs = 1 .+ K * (βs .- 1)
 
     # Compute probability of sucess/failure
-    p_D = [log(p_αβ(α, β, αₖ, βₖ) + eps()) for (α, β, αₖ, βₖ) in zip(model.α, model.β, αₖs, βₖs)]
+    p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
 
     return sum(p_D)
 end
 
 function pℓ(model::KernelBanditModel)
-    log_ps = [log_p(model, K) for K in model.Ks]
+    return pℓ(model, model.α, model.β)
+end
+
+function pℓ(model::KernelBanditModel, α, β)
+    log_ps = [log_p(model, K, α, β) for K in model.Ks]
     lsume = logsumexp(log_ps)
     log_pℓs = log_ps .- lsume
     pℓs = exp.(log_pℓs)
