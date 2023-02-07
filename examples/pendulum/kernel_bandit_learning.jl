@@ -23,13 +23,13 @@ function pendulum_mc_model(nθ, nω, nsamps; σθ_max=0.3, σω_max=0.3)
     return MonteCarloModel(grid, nsamps)
 end
 
-function pendulum_kernel_bandit_model(nθ, nω; σθ_max=0.2, σω_max=1.0, w=[1.0, 0.04])
+function pendulum_kernel_bandit_model(nθ, nω; σθ_max=0.2, σω_max=1.0, w=[1.0, 0.04], ℓconf=0.95)
     # Set up grid
     σθs = collect(range(0, stop=σθ_max, length=nθ))
     σωs = collect(range(0, stop=σω_max, length=nω))
     grid = RectangleGrid(σθs, σωs)
 
-    return KernelBanditModel(grid)
+    return KernelBanditModel(grid, ℓconf=ℓconf)
 end
 
 # Ground truth
@@ -129,8 +129,487 @@ create_kb_learning_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, "
 plot_ℓdist(model_kkb, 16000)
 plot_kb_learning_summary(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, 16000)
 
+# Testing different ℓ confidences
+confs = [0.2, 0.5, 0.75, 0.8, 0.95, 0.99]
+models = [pendulum_kernel_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓconf=conf) for conf in confs]
+set_sizes = []
 
-nothing 
+for model in models
+    println(model.ℓconf)
+    ss = run_estimation!(model, problem, kernel_dkwucb_acquisition, 20000,
+        tuple_return=true, update_kernel_every=10)
+    push!(set_sizes, ss)
+end
+
+ss_nk = [[s[1] for s in ss] for ss in set_sizes]
+ss_k = [[s[2] for s in ss] for ss in set_sizes]
+
+iter = 20000
+p1 = plot(collect(0:iter), ss_k[1][1:iter+1],
+    label="ℓconf= $(confs[1])", legend=:bottomright, xlabel="Number of Episodes", ylabel="Safe Set Size",
+    color=:teal, lw=2, opacity=0.3)
+plot!(p1, collect(0:iter), ss_k[2][1:iter+1], label="ℓconf= $(confs[2])",
+      color=:teal, opacity=0.4, lw=2)
+plot!(p1, collect(0:iter), ss_k[3][1:iter+1], label="ℓconf= $(confs[3])",
+    color=:teal, opacity=0.5, lw=2)
+plot!(p1, collect(0:iter), ss_k[4][1:iter+1], label="ℓconf= $(confs[4])",
+    color=:teal, opacity=0.6, lw=2)
+plot!(p1, collect(0:iter), ss_k[5][1:iter+1], label="ℓconf= $(confs[5])",
+    color=:teal, opacity=0.7, lw=2)
+plot!(p1, collect(0:iter), ss_k[6][1:iter+1], label="ℓconf= $(confs[6])",
+    color=:teal, opacity=0.8, lw=2)
+
+p2 = plot(collect(1:20000), models[1].ℓests,
+    label="ℓconf= $(confs[1])", legend=:topright, xlabel="Number of Episodes", ylabel="ℓ Estimate",
+    color=:magenta, lw=2, opacity=0.3)
+plot!(p2, collect(1:20000), models[2].ℓests, label="ℓconf= $(confs[2])",
+    color=:magenta, opacity=0.4, lw=2)
+plot!(p2, collect(1:20000), models[3].ℓests, label="ℓconf= $(confs[3])",
+    color=:magenta, opacity=0.5, lw=2)
+plot!(p2, collect(1:20000), models[4].ℓests, label="ℓconf= $(confs[4])",
+    color=:magenta, opacity=0.6, lw=2)
+plot!(p2, collect(1:20000), models[5].ℓests, label="ℓconf= $(confs[5])",
+    color=:magenta, opacity=0.7, lw=2)
+plot!(p2, collect(1:20000), models[6].ℓests, label="ℓconf= $(confs[6])",
+    color=:magenta, opacity=0.8, lw=2)
+
+nothing
+
+# function plot_logp(model::KernelBanditModel, iter, Kind; kwargs...)
+#     eval_inds = model.eval_inds[1:iter]
+#     eval_res = model.eval_res[1:iter]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     p = plot_logp(model, model.Ks[Kind], αs, βs; kwargs...)
+
+#     return p
+# end
+
+# function plot_logp(model::KernelBanditModel, K, αs, βs; kwargs...)
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     return to_heatmap(model.grid, p_D; kwargs...)
+# end
+
+# p = plot_logp(model_kkb, 19500, 10, title="19500")
+
+# model_kkb.ℓs[10]
+
+# anim = @animate for iter in 1:200:18000
+#     println(iter)
+#     plot_logp(model_kkb, iter, 10, title="$iter")
+# end
+# Plots.gif(anim, "figs/ltesting.gif", fps=5)
+
+# p1 = plot(model_kkb.eval_inds, legend=false)
+# p2 = plot(model_kkb.ℓests, legend=false)
+# plot(p1, p2, layout=(2, 1))
+
+# model_kkb.eval_inds[16020]
+# ind2x(model_kkb.grid, 216)
+
+# anim = @animate for iter in 1:100
+#     println(iter)
+#     plot_logp(model_kkb, 16000, iter, title="ℓ = $(model_kkb.ℓs[iter])")
+# end
+# Plots.gif(anim, "figs/ltesting_l.gif", fps=5)
+
+# function get_logp(model::KernelBanditModel, iter, Kind, sind)
+#     eval_inds = model.eval_inds[1:iter]
+#     eval_res = model.eval_res[1:iter]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     αₖs = 1 .+ model.Ks[Kind] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[Kind] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D = logp_αβ(αs[sind], βs[sind], αₖs[sind], βₖs[sind])
+#     return p_D
+# end
+
+# get_logp(model_kkb, 16000, 1, 216)
+# plot(1:100, (x) -> get_logp(model_kkb, 13000, x, 216), legend=false)
+# plot(1:100, (x) -> get_logp(model_kkb, 17900, x, 217), legend=false)
+
+# scatter(findall(model_kkb.eval_inds[17000:end] .== 217) .+ 17000)
+
+# anim = @animate for iter in 13500:100:19000
+#     println(iter)
+#     plot(1:100, (x) -> get_logp(model_kkb, iter, x, 217), legend=false, title="$iter")
+# end
+# Plots.gif(anim, "figs/temp.gif", fps=4)
+
+# function plot_Δlogp(model::KernelBanditModel, iter1, iter2, Kind; kwargs...)
+#     K = model.Ks[Kind]
+
+#     # Compute for iter1
+#     eval_inds = model.eval_inds[1:iter1]
+#     eval_res = model.eval_res[1:iter1]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute for iter2
+#     eval_inds = model.eval_inds[1:iter2]
+#     eval_res = model.eval_res[1:iter2]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_2 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     return to_heatmap(model.grid, max.(p_D_2 .- p_D_1, -1.0); kwargs...)
+# end
+
+# plot_Δlogp(model_kkb, 13448, 16001, 10)
+# plot_Δlogp(model_kkb, 13400, 13440, 10)
+
+# function plot_normlogp(model::KernelBanditModel, iter, Kind; kwargs...)
+#     eval_inds = model.eval_inds[1:iter]
+#     eval_res = model.eval_res[1:iter]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     K = model.Ks[Kind]
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+#     norm_p_D = p_D ./ sum(p_D)
+
+#     return to_heatmap(model.grid, norm_p_D; kwargs...)
+# end
+
+# plot_normlogp(model_kkb, 16001, 90)
+
+# function plot_normΔlogp(model::KernelBanditModel, iter1, iter2, Kind; kwargs...)
+#     K = model.Ks[Kind]
+
+#     # Compute for iter1
+#     eval_inds = model.eval_inds[1:iter1]
+#     eval_res = model.eval_res[1:iter1]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute for iter2
+#     eval_inds = model.eval_inds[1:iter2]
+#     eval_res = model.eval_res[1:iter2]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_2 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     Δlogp = p_D_2 .- p_D_1
+#     Δlogp[216] = 0
+#     norm_Δlogp = Δlogp ./ maximum(abs.(Δlogp))
+
+#     return to_heatmap(model.grid, norm_Δlogp; kwargs...)
+# end
+
+# plot_normΔlogp(model_kkb, 13448, 16001, 90)
+
+# anim = @animate for iter in 13500:100:19000
+#     println(iter)
+#     plot_normΔlogp(model_kkb, 13448, iter, 90, title="$iter")
+# end
+# Plots.gif(anim, "figs/norm_deltalogp_90.gif", fps=2)
+
+# function plot_Δpcontrib(model::KernelBanditModel, iter1, iter2, Kind; kwargs...)
+#     K = model.Ks[Kind]
+
+#     # Compute for iter1
+#     eval_inds = model.eval_inds[1:iter1]
+#     eval_res = model.eval_res[1:iter1]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute for iter2
+#     eval_inds = model.eval_inds[1:iter2]
+#     eval_res = model.eval_res[1:iter2]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_2 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     pcontrib_1 = p_D_1 .- sum(p_D_1)
+#     pcontrib_2 = p_D_2 .- sum(p_D_2)
+#     Δpcontrib = pcontrib_1 - pcontrib_2
+
+#     return to_heatmap(model.grid, pcontrib_1; kwargs...)
+# end
+
+# plot_Δpcontrib(model_kkb, 13448, 16001, 10)
+
+# function plot_Δrelative(model::KernelBanditModel, iter1, iter2; kwargs...)
+#     # Compute for iter1
+#     eval_inds = model.eval_inds[1:iter1]
+#     eval_res = model.eval_res[1:iter1]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ model.Ks[1] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[1] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1_1 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ model.Ks[end] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[end] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1_end = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute for iter2
+#     eval_inds = model.eval_inds[1:iter2]
+#     eval_res = model.eval_res[1:iter2]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ model.Ks[1] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[1] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_2_1 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ model.Ks[end] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[end] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_2_end = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     Δ1 = (p_D_1_end .- p_D_1_1)
+#     Δ2 = (p_D_2_end .- p_D_2_1)
+
+#     return to_heatmap(model.grid, Δ2 - Δ1; kwargs...)
+# end
+
+# plot_Δrelative(model_kkb, 13448, 16001)
+
+# function plot_Δ(model::KernelBanditModel, iter1; kwargs...)
+#     # Compute for iter1
+#     eval_inds = model.eval_inds[1:iter1]
+#     eval_res = model.eval_res[1:iter1]
+
+#     αs = zeros(length(model.grid))
+#     βs = zeros(length(model.grid))
+#     for i = 1:length(model.grid)
+#         eval_inds_inds = findall(eval_inds .== i)
+#         neval = length(eval_inds_inds)
+#         if neval > 0
+#             αs[i] = 1 + sum(eval_res[eval_inds_inds])
+#             βs[i] = 2 + neval - αs[i]
+#         else
+#             αs[i] = 1
+#             βs[i] = 1
+#         end
+#     end
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ model.Ks[1] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[1] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1_1 = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ model.Ks[end] * (αs .- 1)
+#     βₖs = 1 .+ model.Ks[end] * (βs .- 1)
+
+#     # Compute probability of sucess/failure
+#     p_D_1_end = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+#     Δ1 = (p_D_1_end .- p_D_1_1)
+
+#     return to_heatmap(model.grid, Δ1; kwargs...)
+# end
+
+# plot_Δ(model_kkb, 13448)
+# plot_Δ(model_kkb, 16000)
+# plot_Δ(model_kkb, 13000)
+
+# model_kkb.eval_inds[16294]
+# nothing 
+
+# @save "examples/pendulum/results/debugging_dip.bson" model_kkb set_sizes_kkb
 # # Messing with integral computation
 # function p_αβ_exact(α, β, αₖ, βₖ)
 #     n, m = α, α + β
