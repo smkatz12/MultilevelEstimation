@@ -85,7 +85,7 @@ reset!(model_kkb)
 kernel_dkwucb_acquisition(model) = kernel_dkwucb_acquisition(model, problem.pfail_threshold,
     problem.conf_threshold, rand_argmax=true, buffer=0.0)
 set_sizes_kkb = run_estimation!(model_kkb, problem, kernel_dkwucb_acquisition, 20000,
-    tuple_return=true, update_kernel_every=10)
+    tuple_return=true, update_kernel_every=500)
 
 plot(collect(1:20000), model_kkb.ℓests, xlabel="Number of Episodes", ylabel="ℓ",
     color=:magenta, lw=2, legend=false)
@@ -120,11 +120,11 @@ end
 
 compute_fpr(model_kkb, problem_gt_small, model_kkb.curr_ℓ)
 
-create_kb_learning_gif(model_kbrandom, problem_gt_small, set_sizes_nk, set_sizes_k, "random_learning.gif",
+create_kb_learning_gif(model_kbrandom, problem_gt_small, set_sizes_nk, set_sizes_k, "random_issafe_bugfix.gif",
     max_iter=15000, plt_every=200, fps=10)
 
-create_kb_learning_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, "kkb_ldrop_learning.gif",
-    max_iter=18000, plt_every=200, fps=10)
+create_kb_learning_gif(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, "kkb_issafe_bugfix.gif",
+    max_iter=15000, plt_every=200, fps=10)
 
 plot_ℓdist(model_kkb, 16000)
 plot_kb_learning_summary(model_kkb, problem_gt_small, set_sizes_nk, set_sizes_k, 16000)
@@ -149,7 +149,7 @@ p1 = plot(collect(0:iter), ss_k[1][1:iter+1],
     label="ℓconf= $(confs[1])", legend=:bottomright, xlabel="Number of Episodes", ylabel="Safe Set Size",
     color=:teal, lw=2, opacity=0.3)
 plot!(p1, collect(0:iter), ss_k[2][1:iter+1], label="ℓconf= $(confs[2])",
-      color=:teal, opacity=0.4, lw=2)
+    color=:teal, opacity=0.4, lw=2)
 plot!(p1, collect(0:iter), ss_k[3][1:iter+1], label="ℓconf= $(confs[3])",
     color=:teal, opacity=0.5, lw=2)
 plot!(p1, collect(0:iter), ss_k[4][1:iter+1], label="ℓconf= $(confs[4])",
@@ -172,6 +172,57 @@ plot!(p2, collect(1:20000), models[5].ℓests, label="ℓconf= $(confs[5])",
     color=:magenta, opacity=0.7, lw=2)
 plot!(p2, collect(1:20000), models[6].ℓests, label="ℓconf= $(confs[6])",
     color=:magenta, opacity=0.8, lw=2)
+
+nothing
+
+pfail(model, params) = interpolate(model.grid, model.pfail, params)
+heatmap(problem_gt.grid_points[:σθs][1:55], problem_gt.grid_points[:σωs][1:60], (x, y) -> pfail(model_gt, [x, y]), xlabel="σθ", ylabel="σω")
+plot(problem_gt.grid_points[:σθs][1:55], (x) -> pfail(model_gt, [x, 0.0]),
+    legend=false, xlabel="σθ", ylabel="Pfail")
+plot(problem_gt.grid_points[:σωs][1:60], (x) -> pfail(model_gt, [0.0, x]),
+    legend=false, xlabel="σω", ylabel="Pfail")
+
+nothing
+
+# function log_psafe(model::KernelBanditModel, K, αs, βs)
+#     # Compute estimated pseudocounts
+#     αₖs = 1 .+ K * (αs .- 1)
+#     βₖs = 1 .+ K * (βs .- 1)
+
+#     # Need ones that are safe with current kernel estimate
+#     is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem.conf_threshold for (α, β) in zip(αₖs, βₖs)]
+#     # Compute probability of sucess/failure
+#     # p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+#     # p_D = [log(p_αβ_new(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+#     if sum(is_safe) > 0
+#         # println("some safe")
+#         p_D = [log(p_αβ_new(αs[i], βs[i], αₖs[i], βₖs[i])) for i in findall(is_safe)]
+#     else
+#         p_D = [0.0]
+#     end
+
+#     return sum(p_D)
+# end
+
+# function pℓ_safe(model::KernelBanditModel)
+#     return pℓ_safe(model, model.α, model.β)
+# end
+
+# function pℓ_safe(model::KernelBanditModel, α, β)
+#     log_ps = [log_psafe(model, K, α, β) for K in model.Ks]
+#     lsume = logsumexp(log_ps)
+#     log_pℓs = log_ps .- lsume
+#     pℓs = exp.(log_pℓs)
+#     return pℓs
+# end
+
+pℓs = pℓ(model_kkb)
+pℓs_safe = pℓ_safe(model_kkb)
+
+p = bar(model_kkb.ℓs, pℓs, legend=false, color=:teal, lw=0.25, xlabel="ℓ", ylabel="P(ℓ ∣ D)",
+    ylims=(0, 0.15), xlims=(0, 0.01), title="Number of Episodes: $iter")
+p = bar(model_kkb.ℓs, pℓs_safe, legend=false, color=:teal, lw=0.25, xlabel="ℓ", ylabel="P(ℓ ∣ D)",
+    ylims=(0, 0.25), xlims=(0, 0.01), title="Number of Episodes: $iter")
 
 nothing
 
@@ -642,6 +693,18 @@ nothing
 # test = p_αβ_exact(α, β, αₖ, βₖ)
 # log(test)
 # logp_αβ(α, β, αₖ, βₖ)
+
+# # Checking exact solution
+# α, β, αₖ, βₖ = 2, 2, 4, 4
+# p_αβ_new(α, β, αₖ, βₖ, nθ=10000)
+# p_αβ_exact(α, β, αₖ, βₖ)
+# logp_αβ(α, β, αₖ, βₖ)
+# log(p_αβ_exact(α, β, αₖ, βₖ))
+
+# p = plot(10:10:1000, (x) -> p_αβ_new(α, β, αₖ, βₖ, nθ=x), xlabel="nbins", legend=false)
+# plot!(p, [0, 1000], [4 / 9, 4 / 9], linestyle=:dash, color=:black)
+
+# plot(1:100, (x) -> log(p_αβ_exact(1, 20, 1, x)), legend=false, xlabel="β", ylabel="log P(1, 20, 1, β)")
 
 # nothing
 

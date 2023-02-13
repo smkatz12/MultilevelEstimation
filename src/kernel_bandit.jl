@@ -159,19 +159,19 @@ function max_improve_acquisition(model::KernelBanditModel, pfail_threshold, conf
     rand_argmax=false)
 
     α, β = model.α, model.β
-    
+
     vals = zeros(length(α))
     for i = 1:length(vals)
         pfail = α[i] / (α[i] + β[i])
         αfail = copy(α)
         αfail[i] += 1
         scorefail = score(model, αfail, β, pfail_threshold, conf_threshold, ρ=ρ)
-        
+
         psucceed = 1 - pfail
         βsucceed = copy(β)
         βsucceed[i] += 1
         scoresucceed = score(model, α, βsucceed, pfail_threshold, conf_threshold, ρ=ρ)
-        
+
         vals[i] = pfail * scorefail + psucceed * scoresucceed
     end
 
@@ -190,16 +190,16 @@ function faster_max_improve_acquisition(model::KernelBanditModel, pfail_threshol
     α, β = model.α, model.β
     curr_α_est = 1 .+ model.K * (α .- 1)
     curr_β_est = 1 .+ model.K * (β .- 1)
-    
+
     vals = zeros(length(α))
     for i = 1:length(vals)
         pfail = α[i] / (α[i] + β[i])
         scorefail = score(model, curr_α_est, curr_β_est, i, true, pfail_threshold, conf_threshold, ρ=ρ)
-        
+
         psucceed = 1 - pfail
 
         scoresucceed = score(model, curr_α_est, curr_β_est, false, conf_threshold, ρ=ρ)
-        
+
         vals[i] = pfail * scorefail + psucceed * scoresucceed
     end
 
@@ -291,19 +291,19 @@ function score(model::KernelBanditModel, α, β, pfail_threshold, conf_threshold
     β_est = 1 .+ model.K * (β .- 1)
 
     scores = [cdf(Beta(α₀, β₀), pfail_threshold) for (α₀, β₀) in zip(α_est, β_est)]
-    scores[scores .> conf_threshold] .= ρ
+    scores[scores.>conf_threshold] .= ρ
 
     return sum(scores)
 end
 
-function score(model::KernelBanditModel, curr_α_est, curr_β_est, n, fail, pfail_threshold, 
+function score(model::KernelBanditModel, curr_α_est, curr_β_est, n, fail, pfail_threshold,
     conf_threshold; ρ=2.0)
 
     α_est = fail ? curr_α_est + model.K[:, n] : curr_α_est
     β_est = fail ? curr_β_est : curr_β_est + model.K[:, n]
 
     scores = [cdf(Beta(α₀, β₀), pfail_threshold) for (α₀, β₀) in zip(α_est, β_est)]
-    scores[scores .> conf_threshold] .= ρ
+    scores[scores.>conf_threshold] .= ρ
 
     return sum(scores)
 end
@@ -317,7 +317,13 @@ function p_αβ(α, β, αₖ, βₖ; nθ=100)
     return (1 / nθ) * sum(terms)
 end
 
-function p_αβ_exact(α, β, αₖ, βₖ)
+function p_αβ_new(α, β, αₖ, βₖ; nθ=100)
+    dist = Beta(αₖ, βₖ)
+    terms = [pdf(Binomial(α + β - 2, θ), α - 1) * pdf(dist, θ) for θ in range(0.0, stop=1.0, length=nθ)[1:end-1]]
+    return (1 / nθ) * sum(terms)
+end
+
+function p_αβ_exact_old(α, β, αₖ, βₖ)
     n, m = α, α + β
     nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
     numerator = gamma(mₖ + 2) * gamma(nₖ + n + 1) * gamma(mₖ - nₖ + m - n + 1)
@@ -328,11 +334,29 @@ function p_αβ_exact(α, β, αₖ, βₖ)
     return p
 end
 
-function logp_αβ(α, β, αₖ, βₖ)
+function p_αβ_exact(α, β, αₖ, βₖ)
+    n, m = α - 1, α + β - 2
+    nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
+    numerator = gamma(mₖ + 2) * gamma(m + 1) * gamma(nₖ + n + 1) * gamma(mₖ - nₖ + m - n + 1)
+    denominator = gamma(nₖ + 1) * gamma(n + 1) * gamma(mₖ - nₖ + 1) * gamma(mₖ + m + 2) * gamma(m - n + 1)
+    p = numerator / denominator
+    return p
+end
+
+function logp_αβ_old(α, β, αₖ, βₖ)
     n, m = α, α + β
     nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
     numerator = loggamma(mₖ + 2) + loggamma(nₖ + n + 1) + loggamma(mₖ - nₖ + m - n + 1)
     denominator = loggamma(nₖ + 1) + loggamma(mₖ - nₖ + 1) + loggamma(mₖ + m + 2)
+    logp = numerator - denominator
+    return logp
+end
+
+function logp_αβ(α, β, αₖ, βₖ)
+    n, m = α - 1, α + β - 2
+    nₖ, mₖ = αₖ - 1, αₖ + βₖ - 2
+    numerator = loggamma(mₖ + 2) + loggamma(m + 1) + loggamma(nₖ + n + 1) + loggamma(mₖ - nₖ + m - n + 1)
+    denominator = loggamma(nₖ + 1) + loggamma(n + 1) + loggamma(mₖ - nₖ + 1) + loggamma(mₖ + m + 2) + loggamma(m - n + 1)
     logp = numerator - denominator
     return logp
 end
@@ -348,6 +372,7 @@ function log_p(model::KernelBanditModel, K, αs, βs)
 
     # Compute probability of sucess/failure
     p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+    # p_D = [log(p_αβ_new(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
 
     return sum(p_D)
 end
@@ -358,6 +383,38 @@ end
 
 function pℓ(model::KernelBanditModel, α, β)
     log_ps = [log_p(model, K, α, β) for K in model.Ks]
+    lsume = logsumexp(log_ps)
+    log_pℓs = log_ps .- lsume
+    pℓs = exp.(log_pℓs)
+    return pℓs
+end
+
+function log_psafe(model::KernelBanditModel, curr_αₖs, curr_βₖs, K, αs, βs)
+    # Compute estimated pseudocounts
+    αₖs = 1 .+ K * (αs .- 1)
+    βₖs = 1 .+ K * (βs .- 1)
+
+    is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem.conf_threshold for (α, β) in zip(curr_αₖs, curr_βₖs)]
+    # Compute probability of sucess/failure
+    # p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+    # p_D = [log(p_αβ_new(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+    if sum(is_safe) > 0
+        p_D = [log(p_αβ_new(αs[i], βs[i], αₖs[i], βₖs[i])) for i in findall(is_safe)]
+    else
+        p_D = [0.0]
+    end
+
+    return sum(p_D)
+end
+
+function pℓ_safe(model::KernelBanditModel)
+    return pℓ_safe(model, model.K, model.α, model.β)
+end
+
+function pℓ_safe(model::KernelBanditModel, curr_K, α, β)
+    curr_αₖs = 1 .+ curr_K * (α .- 1)
+    curr_βₖs = 1 .+ curr_K * (β .- 1)
+    log_ps = [log_psafe(model, curr_αₖs, curr_βₖs, K, α, β) for K in model.Ks]
     lsume = logsumexp(log_ps)
     log_pℓs = log_ps .- lsume
     pℓs = exp.(log_pℓs)

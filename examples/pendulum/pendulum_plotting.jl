@@ -438,7 +438,8 @@ function plot_ℓdist(model::KernelBanditModel, iter; kwargs...)
         end
     end
 
-    pℓs = pℓ(model, αs, βs)
+    curr_K = model.Ks[findfirst(model.ℓs .== model.ℓests[iter])]
+    pℓs = pℓ_safe(model, curr_K, αs, βs)
     p = bar(model.ℓs, pℓs, legend=false, color=:teal, lw=0.25, xlabel="ℓ", ylabel="P(ℓ ∣ D)",
         ylims=(0, 0.15), xlims=(0, 0.01), title="Number of Episodes: $iter")
     dist = Categorical(pℓs)
