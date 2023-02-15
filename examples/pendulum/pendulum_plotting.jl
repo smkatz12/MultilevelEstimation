@@ -39,7 +39,7 @@ function plot_eval_points(model::GaussianProcessModel; include_grid=true, kwargs
 end
 
 # Bandit
-function plot_eval_points_size(model::Union{BanditModel,KernelBanditModel}, iter; include_grid=true, kwargs...)
+function plot_eval_points_size(model::Union{BanditModel,KernelBanditModel,LearningBanditModel}, iter; include_grid=true, kwargs...)
     eval_inds = model.eval_inds[1:iter]
     eval_set = unique(eval_inds)
     xs_eval = [ind2x(model.grid, i)[1] for i in eval_set]
@@ -60,7 +60,8 @@ function plot_eval_points_size(model::Union{BanditModel,KernelBanditModel}, iter
     return p
 end
 
-function plot_eval_points(model::Union{BanditModel,KernelBanditModel}, iter; include_grid=true, kwargs...)
+function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBanditModel}, iter; include_grid=true,
+    θmax=0.2, ωmax=1.0, kwargs...)
     eval_inds = model.eval_inds[1:iter]
     eval_set = unique(eval_inds)
     xs_eval = [ind2x(model.grid, i)[1] for i in eval_set]
@@ -74,7 +75,7 @@ function plot_eval_points(model::Union{BanditModel,KernelBanditModel}, iter; inc
     p = scatter(xs_eval, ys_eval, zcolor=neval, c=:thermal, clims=(1, 30),
         markersize=4.0, marker=:c, msw=0, #markerstrokecolor=:white,
         ylabel="σω", legend=false,
-        xlims=(0.0, 0.2), ylims=(0.0, 1.0); kwargs...)
+        xlims=(0.0, θmax), ylims=(0.0, ωmax); kwargs...)
 
     if include_grid
         xs = [pt[1] for pt in model.grid]
@@ -85,7 +86,7 @@ function plot_eval_points(model::Union{BanditModel,KernelBanditModel}, iter; inc
     return p
 end
 
-function plot_eval_points(model::Union{BanditModel,KernelBanditModel}; include_grid=true, kwargs...)
+function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBanditModel}; include_grid=true, kwargs...)
     return plot_eval_points(model, length(model.eval_inds), include_grid=include_grid; kwargs...)
 end
 
@@ -190,7 +191,7 @@ function plot_safe_set(model::KernelBanditModel, problem_gt::GriddedProblem, K, 
         βs = 1 .+ K * (βs .- 1)
     end
 
-    is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem.conf_threshold for (α, β) in zip(αs, βs)]
+    is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem_gt.conf_threshold for (α, β) in zip(αs, βs)]
 
     colors = zeros(length(is_safe))
     FN_inds = findall(.!is_safe .& problem_gt.is_safe)
@@ -215,6 +216,59 @@ end
 
 function plot_safe_set(model::KernelBanditModel, problem_gt::GriddedProblem; use_kernel=false, kwargs...)
     return plot_safe_set(model, problem_gt, model.K, length(model.eval_inds); use_kernel=use_kernel, kwargs...)
+end
+
+# Learning Bandit
+function plot_safe_set(model::LearningBanditModel, problem_gt::GriddedProblem, iter; use_kernel=false, kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_res = model.eval_res[1:iter]
+
+    αs = zeros(length(model.grid))
+    βs = zeros(length(model.grid))
+    for i = 1:length(model.grid)
+        eval_inds_inds = findall(eval_inds .== i)
+        neval = length(eval_inds_inds)
+        if neval > 0
+            αs[i] = 1 + sum(eval_res[eval_inds_inds])
+            βs[i] = 2 + neval - αs[i]
+        else
+            αs[i] = 1
+            βs[i] = 1
+        end
+    end
+    if use_kernel
+        αₖ = reshape(1 .+ model.Ks * (αs .- 1), length(model.grid), length(model.ℓs))
+        βₖ = reshape(1 .+ model.Ks * (βs .- 1), length(model.grid), length(model.ℓs))
+        pℓs = pℓ(αs, βs, αₖ, βₖ)
+        αs = αₖ * pℓs
+        βs = βₖ * pℓs
+    end
+
+    is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem_gt.conf_threshold for (α, β) in zip(αs, βs)]
+
+    colors = zeros(length(is_safe))
+    FN_inds = findall(.!is_safe .& problem_gt.is_safe)
+    !isnothing(FN_inds) ? colors[FN_inds] .= 0.25 : nothing
+    TN_inds = findall(.!is_safe .& .!problem_gt.is_safe)
+    !isnothing(TN_inds) ? colors[TN_inds] .= 0.75 : nothing
+    FP_inds = findall(is_safe .& .!problem_gt.is_safe)
+    !isnothing(FP_inds) ? colors[FP_inds] .= 0.5 : nothing
+
+    if sum(is_safe) > 0
+        p2 = to_heatmap(model.grid, colors,
+            c=cgrad(mycmap, 4, categorical=true), colorbar=:none,
+            xlabel="σθ", ylabel="σω"; kwargs...)
+    else
+        p2 = to_heatmap(model.grid, colors,
+            c=cgrad(mycmap_small, 2, categorical=true), colorbar=:none,
+            xlabel="σθ", ylabel="σω"; kwargs...)
+    end
+
+    return p2
+end
+
+function plot_safe_set(model::KernelBanditModel, problem_gt::GriddedProblem; use_kernel=false, kwargs...)
+    return plot_safe_set(model, problem_gt, length(model.eval_inds); use_kernel=use_kernel, kwargs...)
 end
 
 """ GP specific plots """
@@ -438,28 +492,29 @@ function plot_ℓdist(model::KernelBanditModel, iter; kwargs...)
         end
     end
 
-    curr_K = model.Ks[findfirst(model.ℓs .== model.ℓests[iter])]
-    pℓs = pℓ_safe(model, curr_K, αs, βs)
+    # curr_K = model.Ks[findfirst(model.ℓs .== model.ℓests[iter])]
+    pℓs = pℓ(model, αs, βs)
     p = bar(model.ℓs, pℓs, legend=false, color=:teal, lw=0.25, xlabel="ℓ", ylabel="P(ℓ ∣ D)",
-        ylims=(0, 0.15), xlims=(0, 0.01), title="Number of Episodes: $iter")
+        ylims=(0, 0.25), xlims=(0, model.ℓs[end]), title="Number of Episodes: $iter")
     dist = Categorical(pℓs)
     q = model.ℓs[quantile(dist, 1 - model.ℓconf)]
-    plot!(p, [q, q], [0, 0.15], lw=2; kwargs...)
+    plot!(p, [q, q], [0, 0.25], lw=2; kwargs...)
 
     return p
 end
 
 function plot_kb_summary(model::KernelBanditModel, problem::GriddedProblem,
-    set_sizes_nk, set_sizes_k, iter; max_iter=20000)
+    set_sizes_nk, set_sizes_k, iter; max_iter=20000, θmax=0.2, ωmax=1.0)
+    true_size = sum(problem.is_safe)
     p1 = plot(collect(0:iter), set_sizes_nk[1:iter+1],
         label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
     plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
         label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
-        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, 150))
-    plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size",
+        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, true_size + 20))
+    plot!(p1, [0.0, 20000.0], [true_size, true_size], linestyle=:dash, lw=3, color=:black, label="True Size",
         legend=false)
 
-    p2 = plot_eval_points(model, iter, include_grid=false, xlabel="σθ")
+    p2 = plot_eval_points(model, iter, include_grid=false, θmax=0.2, ωmax=1.0, xlabel="σθ")
 
     p3 = plot_total_counts(model, problem, model.K, iter, use_kernel=false, title="Counts")
     p4 = plot_total_counts(model, problem, model.K, iter, use_kernel=true, title="With Kernel")
@@ -486,17 +541,17 @@ function create_kb_gif(model::KernelBanditModel, problem::GriddedProblem,
 end
 
 function plot_kb_learning_summary(model::KernelBanditModel, problem::GriddedProblem,
-    set_sizes_nk, set_sizes_k, iter; max_iter=20000)
-
+    set_sizes_nk, set_sizes_k, iter; max_iter=20000, θmax=0.2, ωmax=1.0)
+    true_size = sum(problem.is_safe)
     p1 = plot(collect(0:iter), set_sizes_nk[1:iter+1],
         label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
     plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
         label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
-        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, 150))
-    plot!(p1, [0.0, 20000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size",
-        legend=false, title="Safe Set Size")
+        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, true_size + 20))
+    plot!(p1, [0.0, max_iter], [true_size, true_size], linestyle=:dash, lw=3, color=:black, label="True Size",
+        legend=false)
 
-    p2 = plot_eval_points(model, iter, include_grid=false, xlabel="σθ")
+    p2 = plot_eval_points(model, iter, include_grid=false, xlabel="σθ", θmax=θmax, ωmax=ωmax)
 
     curr_K = model.Ks[findfirst(model.ℓs .== model.ℓests[iter])]
     p3 = plot_total_counts(model, problem, curr_K, iter, use_kernel=true, title="Total Counts")
@@ -509,10 +564,131 @@ function plot_kb_learning_summary(model::KernelBanditModel, problem::GriddedProb
 end
 
 function create_kb_learning_gif(model::KernelBanditModel, problem::GriddedProblem,
-    set_sizes_nk, set_sizes_k, filename; max_iter=20000, plt_every=100, fps=30)
+    set_sizes_nk, set_sizes_k, filename; max_iter=20000, plt_every=100, fps=30, θmax=0.2, ωmax=1.0)
     anim = @animate for iter in 1:plt_every:max_iter
         println(iter)
-        plot_kb_learning_summary(model, problem, set_sizes_nk, set_sizes_k, iter, max_iter=max_iter)
+        plot_kb_learning_summary(model, problem, set_sizes_nk, set_sizes_k, iter, max_iter=max_iter,
+            θmax=θmax, ωmax=ωmax)
+    end
+    Plots.gif(anim, "figs/$filename", fps=fps)
+end
+
+""" Learning Bandit Specific Plots """
+function plot_total_counts(model::LearningBanditModel, problem_gt::GriddedProblem, iter; use_kernel=false, kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_res = model.eval_res[1:iter]
+
+    αs = zeros(length(model.grid))
+    βs = zeros(length(model.grid))
+    for i = 1:length(model.grid)
+        eval_inds_inds = findall(eval_inds .== i)
+        neval = length(eval_inds_inds)
+        if neval > 0
+            αs[i] = 1 + sum(eval_res[eval_inds_inds])
+            βs[i] = 2 + neval - αs[i]
+        else
+            αs[i] = 1
+            βs[i] = 1
+        end
+    end
+    if use_kernel
+        αₖ = reshape(1 .+ model.Ks * (αs .- 1), length(model.grid), length(model.ℓs))
+        βₖ = reshape(1 .+ model.Ks * (βs .- 1), length(model.grid), length(model.ℓs))
+        pℓs = pℓ(αs, βs, αₖ, βₖ)
+        αs = αₖ * pℓs
+        βs = βₖ * pℓs
+    end
+
+    p1 = to_heatmap(model.grid, αs + βs, xlabel="σθ", ylabel="σω"; kwargs...)
+
+    return p1
+end
+
+function plot_test_stats(model::LearningBanditModel, problem_gt::GriddedProblem, iter; use_kernel=false, kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_res = model.eval_res[1:iter]
+
+    αs = zeros(length(model.grid))
+    βs = zeros(length(model.grid))
+    for i = 1:length(model.grid)
+        eval_inds_inds = findall(eval_inds .== i)
+        neval = length(eval_inds_inds)
+        if neval > 0
+            αs[i] = 1 + sum(eval_res[eval_inds_inds])
+            βs[i] = 2 + neval - αs[i]
+        else
+            αs[i] = 1
+            βs[i] = 1
+        end
+    end
+    if use_kernel
+        αₖ = reshape(1 .+ model.Ks * (αs .- 1), length(model.grid), length(model.ℓs))
+        βₖ = reshape(1 .+ model.Ks * (βs .- 1), length(model.grid), length(model.ℓs))
+        pℓs = pℓ(αs, βs, αₖ, βₖ)
+        αs = αₖ * pℓs
+        βs = βₖ * pℓs
+    end
+    test_stats = [cdf(Beta(α, β), problem_gt.pfail_threshold) for (α, β) in zip(αs, βs)]
+
+    p = to_heatmap(model.grid, test_stats, xlabel="σθ", ylabel="σω"; kwargs...)
+
+    return p
+end
+
+function plot_ℓdist(model::LearningBanditModel, iter; kwargs...)
+    eval_inds = model.eval_inds[1:iter]
+    eval_res = model.eval_res[1:iter]
+
+    αs = zeros(length(model.grid))
+    βs = zeros(length(model.grid))
+    for i = 1:length(model.grid)
+        eval_inds_inds = findall(eval_inds .== i)
+        neval = length(eval_inds_inds)
+        if neval > 0
+            αs[i] = 1 + sum(eval_res[eval_inds_inds])
+            βs[i] = 2 + neval - αs[i]
+        else
+            αs[i] = 1
+            βs[i] = 1
+        end
+    end
+
+    αₖ = reshape(1 .+ model.Ks * (αs .- 1), length(model.grid), length(model.ℓs))
+    βₖ = reshape(1 .+ model.Ks * (βs .- 1), length(model.grid), length(model.ℓs))
+    pℓs = pℓ(αs, βs, αₖ, βₖ)
+    p = bar(model.ℓs, pℓs, legend=false, color=:teal, lw=0.25, xlabel="ℓ", ylabel="P(ℓ ∣ D)",
+        ylims=(0, 0.3), xlims=(0, model.ℓs[end]), title="Number of Episodes: $iter")
+    return p
+end
+
+function plot_learning_summary(model::LearningBanditModel, problem::GriddedProblem,
+    set_sizes_nk, set_sizes_k, iter; max_iter=20000, θmax=0.2, ωmax=1.0)
+    true_size = sum(problem.is_safe)
+    p1 = plot(collect(0:iter), set_sizes_nk[1:iter+1],
+        label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
+    plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
+        label="Kernel DKWUCB", legend=:bottomright, color=:teal, lw=2,
+        xlabel="Number of Episodes", ylabel="Safe Set Size", xlims=(0, max_iter), ylims=(0, true_size + 20))
+    plot!(p1, [0.0, max_iter], [true_size, true_size], linestyle=:dash, lw=3, color=:black, label="True Size",
+        legend=false)
+
+    p2 = plot_eval_points(model, iter, include_grid=false, xlabel="σθ", θmax=θmax, ωmax=ωmax)
+
+    p3 = plot_total_counts(model, problem, iter, use_kernel=true, title="Total Counts")
+    p4 = plot_test_stats(model, problem, iter, use_kernel=true, title="Test Statistic")
+    p5 = plot_ℓdist(model, iter, title="Distribution over Kernel")
+    p6 = plot_safe_set(model, problem, iter, use_kernel=true, title="Safe Set Estimate")
+
+    p = plot(p1, p3, p5, p2, p4, p6, layout=(2, 3), size=(900, 500), left_margin=3mm)
+    return p
+end
+
+function create_learning_gif(model::LearningBanditModel, problem::GriddedProblem,
+    set_sizes_nk, set_sizes_k, filename; max_iter=20000, plt_every=100, fps=30, θmax=0.2, ωmax=1.0)
+    anim = @animate for iter in 1:plt_every:max_iter
+        println(iter)
+        plot_learning_summary(model, problem, set_sizes_nk, set_sizes_k, iter, max_iter=max_iter,
+            θmax=θmax, ωmax=ωmax)
     end
     Plots.gif(anim, "figs/$filename", fps=fps)
 end

@@ -361,6 +361,15 @@ function logp_αβ(α, β, αₖ, βₖ)
     return logp
 end
 
+function logp_αβ_vec(α, β, αₖ, βₖ)
+    n, m = α .- 1, α + β .- 2
+    nₖ, mₖ = αₖ .- 1, αₖ .+ βₖ .- 2
+    numerator = loggamma.(mₖ .+ 2) .+ loggamma.(m .+ 1) .+ loggamma.(nₖ .+ n .+ 1) .+ loggamma.(mₖ .- nₖ .+ m .- n .+ 1)
+    denominator = loggamma.(nₖ .+ 1) .+ loggamma.(n .+ 1) .+ loggamma.(mₖ .- nₖ .+ 1) + loggamma.(mₖ .+ m .+ 2) .+ loggamma.(m .- n .+ 1)
+    logp = numerator .- denominator
+    return logp
+end
+
 function log_p(model::KernelBanditModel, K)
     return log_p(model, K, model.α, model.β)
 end
@@ -372,6 +381,22 @@ function log_p(model::KernelBanditModel, K, αs, βs)
 
     # Compute probability of sucess/failure
     p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+    # p_D = [log(p_αβ_new(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
+
+    return sum(p_D)
+end
+
+function log_p_vec(model::KernelBanditModel, K)
+    return log_p_vec(model, K, model.α, model.β)
+end
+
+function log_p_vec(model::KernelBanditModel, K, αs, βs)
+    # Compute estimated pseudocounts
+    αₖs = 1 .+ K * (αs .- 1)
+    βₖs = 1 .+ K * (βs .- 1)
+
+    # Compute probability of sucess/failure
+    p_D = logp_αβ_vec(αs, βs, αₖs, βₖs)
     # p_D = [log(p_αβ_new(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
 
     return sum(p_D)
@@ -389,12 +414,24 @@ function pℓ(model::KernelBanditModel, α, β)
     return pℓs
 end
 
+function pℓ_vec(model::KernelBanditModel)
+    return pℓ_vec(model, model.α, model.β)
+end
+
+function pℓ_vec(model::KernelBanditModel, α, β)
+    log_ps = [log_p_vec(model, K, α, β) for K in model.Ks]
+    lsume = logsumexp(log_ps)
+    log_pℓs = log_ps .- lsume
+    pℓs = exp.(log_pℓs)
+    return pℓs
+end
+
 function log_psafe(model::KernelBanditModel, curr_αₖs, curr_βₖs, K, αs, βs)
     # Compute estimated pseudocounts
     αₖs = 1 .+ K * (αs .- 1)
     βₖs = 1 .+ K * (βs .- 1)
 
-    is_safe = [cdf(Beta(α, β), problem_gt.pfail_threshold) > problem.conf_threshold for (α, β) in zip(curr_αₖs, curr_βₖs)]
+    is_safe = [cdf(Beta(α, β), problem_gt_small.pfail_threshold) > problem_gt_small.conf_threshold for (α, β) in zip(curr_αₖs, curr_βₖs)]
     # Compute probability of sucess/failure
     # p_D = [logp_αβ(α, β, αₖ, βₖ) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
     # p_D = [log(p_αβ_new(α, β, αₖ, βₖ)) for (α, β, αₖ, βₖ) in zip(αs, βs, αₖs, βₖs)]
