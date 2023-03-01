@@ -35,7 +35,7 @@ function log!(model::MonteCarloModel, sample_ind, res)
     pfail = nfail / model.nsamps
 
     model.α[sample_ind] += nfail
-    model.β[sample_ind] += 1 - nfail
+    model.β[sample_ind] += model.nsamps - nfail
     model.pfail[sample_ind] = pfail
     model.curr_ind += 1
 end

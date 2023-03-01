@@ -39,7 +39,7 @@ function plot_eval_points(model::GaussianProcessModel; include_grid=true, kwargs
 end
 
 # Bandit
-function plot_eval_points_size(model::Union{BanditModel,KernelBanditModel,LearningBanditModel}, iter; include_grid=true, kwargs...)
+function plot_eval_points_size(model::Union{BanditModel,KernelBanditModel,LearningBanditModel, PSpecBanditModel}, iter; include_grid=true, kwargs...)
     eval_inds = model.eval_inds[1:iter]
     eval_set = unique(eval_inds)
     xs_eval = [ind2x(model.grid, i)[1] for i in eval_set]
@@ -60,7 +60,7 @@ function plot_eval_points_size(model::Union{BanditModel,KernelBanditModel,Learni
     return p
 end
 
-function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBanditModel}, iter; include_grid=true,
+function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBanditModel, PSpecBanditModel}, iter; include_grid=true,
     θmax=0.2, ωmax=1.0, kwargs...)
     eval_inds = model.eval_inds[1:iter]
     eval_set = unique(eval_inds)
@@ -86,7 +86,7 @@ function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBan
     return p
 end
 
-function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBanditModel}; include_grid=true, kwargs...)
+function plot_eval_points(model::Union{BanditModel,KernelBanditModel,LearningBanditModel, PSpecBanditModel}; include_grid=true, kwargs...)
     return plot_eval_points(model, length(model.eval_inds), include_grid=include_grid; kwargs...)
 end
 
