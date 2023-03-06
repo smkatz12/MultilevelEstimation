@@ -104,7 +104,8 @@ reset!(model_random)
 set_sizes_random = run_estimation!(model_random, problem_gt_small, random_acquisition, 1000,
     tuple_return=true)
 
-model_kkb = pendulum_pspec_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓmax=1e-1)
+# model_kkb = pendulum_pspec_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓmax=1e-1)
+model_kkb = pendulum_pspec_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max, ℓmin=1e-4, ℓmax=4e-2)
 reset!(model_kkb)
 kernel_dkwucb_acquisition(model) = kernel_dkwucb_acquisition(model, problem_gt_small.pfail_threshold,
     problem_gt_small.conf_threshold, rand_argmax=true, buffer=0.0)
@@ -118,7 +119,7 @@ vals = [dot(model_kkb.θs, model_kkb.θdists[i, :]) for i = 1:length(model_kkb.g
 to_heatmap(model_kkb.grid, vals, xlabel="σθ", ylabel="σω")
 model_kkb.θdists
 
-plot_eval_points(model_kkb, 500)
+plot_eval_points(model_kkb, 5000)
 
 set_sizes_nk = [s[1] for s in set_sizes_kkb]
 set_sizes_k = [s[2] for s in set_sizes_kkb]
@@ -137,7 +138,7 @@ model_b = pendulum_bandit_model(nθ, nω, σθ_max=σθ_max, σω_max=σω_max)
 dkwucb_acquisition(model) = dkwucb_acquisition(model, problem.pfail_threshold, problem.conf_threshold)
 set_sizes_b = run_estimation!(model_b, problem, dkwucb_acquisition, 100000)
 
-iter = 20000
+iter = 5000
 p1 = plot(collect(0:iter), set_sizes_b[1:iter+1],
     label="DKWUCB", legend=:bottomright, color=:gray, lw=2)
 plot!(p1, collect(0:iter), set_sizes_k[1:iter+1],
@@ -238,13 +239,13 @@ end
 
 @time p = plot_pspec_summary(model_kkb, set_sizes_nk, set_sizes_b, set_sizes_k, problem_gt_small, 1000)
 
-max_iter = 100000
-anim = @animate for iter in 1:1000:max_iter
+max_iter = 5000
+anim = @animate for iter in 1:10:5000
     println(iter)
     plot_pspec_summary(model_kkb, set_sizes_nk, set_sizes_b, set_sizes_k, problem_gt_small, iter;
-                       max_iter=max_iter)
+        max_iter=max_iter)
 end
-Plots.gif(anim, "figs/pspec_results_100000.gif", fps=5)
+Plots.gif(anim, "figs/pspec_resticted_results_5000.gif", fps=10)
 
 ℓs, Ks = get_Ks(model_kkb.grid, ℓmin=1e-3, ℓmax=1e-2, nbins=100)
 model_kkb.ℓs = ℓs
@@ -349,3 +350,51 @@ plot!(p1, inds, ss,
 plot!(p1, [0.0, 100000.0], [108, 108], linestyle=:dash, lw=3, color=:black, label="True Size")
 
 plot(inds, fpr)
+
+# Look into ℓdists to understand prior
+model_2 = BSON.load("/scratch/smkatz/multilevelest/pspec_run_100000_bugfix.bson")[:model_kkb]
+
+function plot_pℓ(model, pt)
+    sps, ps = interpolants(model.grid, pt)
+    ind = sps[argmax(ps)]
+
+    p = bar(model.ℓs, model.curr_pspecℓs[ind, :], legend=false, color=:teal, lw=0.25, xlabel="ℓ",
+        ylabel="P(ℓ ∣ D)", ylims=(0, maximum(model.curr_pspecℓs[ind, :]) + 0.02),
+        xlims=(model.ℓs[1], model.ℓs[end]))
+    return p
+end
+
+plot_pℓ(model_2, [0.03, 0.1])
+plot_pℓ(model_2, [0.08, 0.25])
+plot_pℓ(model_2, [0.11, 0.25])
+plot_pℓ(model_2, [0.08, 0.5])
+
+plot_pℓ(model_kkb, [0.03, 0.1])
+plot_pℓ(model_kkb, [0.08, 0.25])
+plot_pℓ(model_kkb, [0.11, 0.25])
+plot_pℓ(model_kkb, [0.08, 0.5])
+
+function plot_frame_ind(model, model_gt, problem_gt, curr_ind)
+    function get_heat(x, y)
+        sps, ps = interpolants(model.grid, [x, y])
+        ind = sps[argmax(ps)]
+        if ind == curr_ind
+            return 1.2
+        else
+            return interpolate(model_gt.grid, model_gt.pfail, [x, y])
+        end
+    end
+    p1 = heatmap(problem_gt.grid_points[:σθs], problem_gt.grid_points[:σωs], (x, y) -> get_heat(x, y),
+        xlabel="σθ", ylabel="σω")
+    p2 = bar(model.ℓs, model.curr_pspecℓs[curr_ind, :], legend=false, color=:teal, lw=0.25, xlabel="ℓ",
+        ylabel="P(ℓ ∣ D)", ylims=(0, maximum(model.curr_pspecℓs[curr_ind, :]) + 0.02), xlims=(0, model.ℓs[end]))
+    return plot(p1, p2, size=(800, 300))
+end
+
+p = plot_frame_ind(model_2, model_gt_small, problem_gt_small, 420)
+
+anim = @animate for ind in 1:length(model_kkb.grid)
+    println(ind)
+    plot_frame_ind(model_kkb, model_gt_small, problem_gt_small, ind)
+end
+Plots.gif(anim, "figs/pspec_dists_model_resticted.gif", fps=5)
