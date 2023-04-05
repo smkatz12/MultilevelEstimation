@@ -75,7 +75,7 @@ function log!(model::PSpecBanditModel, sample_ind, res)
         model.θdists[:, i] = sum(pdf.(dists, θ) .* model.curr_pspecℓs, dims=2)
     end
     for i = 1:size(model.θdists, 1)
-        model_kkb.θdists[i, :] = model_kkb.θdists[i, :] ./ sum(model_kkb.θdists[i, :])
+        model.θdists[i, :] = model.θdists[i, :] ./ sum(model.θdists[i, :])
     end
 end
 

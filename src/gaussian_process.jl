@@ -47,10 +47,11 @@ function log!(model::GaussianProcessModel, sample_ind, res)
     nfail = sum(res)
     pfail = nfail / model.nsamps
 
+    params = to_params(model, sample_ind)
     push!(model.X, params)
     push!(model.X_inds, sample_ind)
     push!(model.y, pfail)
-    deleteat!(model.X_pred_inds, findall(x -> x == params, model.X_pred))
+    deleteat!(model.X_pred_inds, findall(x -> x == sample_ind, model.X_pred_inds))
     deleteat!(model.X_pred, findall(x -> x == params, model.X_pred))
 
     model.α[sample_ind] += nfail
