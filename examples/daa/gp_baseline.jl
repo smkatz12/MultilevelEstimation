@@ -66,8 +66,8 @@ estimate_from_pfail!(problem_gt_small, model_gt_small)
 # Actual safe set size
 sum(problem_gt_small.is_safe)
 
-nsamps_tot = 50000
-nsamps_indiv = 100
+nsamps_tot = 1000000
+nsamps_indiv = 1000
 
 # Random acquisition
 model_gp = daa_gp_model(nx₀, ny₀, nf, ℓ=5e-2, nsamps=nsamps_indiv)
@@ -126,8 +126,8 @@ function plot_safe_set(model::GaussianProcessModel, problem_gt::GriddedProblem, 
     all_X = [X for X in model.grid]
     all_inds = collect(1:length(model.grid))
     μ, σ² = predict(model, model.X[1:iter], model.X_inds[1:iter], model.y[1:iter], all_X, all_inds, model.K)
-    β = quantile(Normal(), problem.conf_threshold)
-    is_safe = (μ .+ β .* sqrt.(σ²)) .< problem.pfail_threshold
+    β = quantile(Normal(), problem_gt.conf_threshold)
+    is_safe = (μ .+ β .* sqrt.(σ²)) .< problem_gt.pfail_threshold
     is_safe_slices = reshape(is_safe, length(model.grid.cutPoints[1]), length(model.grid.cutPoints[2]), length(model.grid.cutPoints[3]))
 
     colors = zeros(length(is_safe))
@@ -158,8 +158,8 @@ function plot_safe_set(model::GaussianProcessModel, problem_gt::GriddedProblem, 
     return plot(ps..., layout=(2, 4), size=(800, 450))
 end
 
-p = plot_safe_set(model_gp, problem_gt_small, 500)
-p = plot_safe_set(model_mile, problem_gt_small, 500)
+p = plot_safe_set(model_gp, problem_gt_small, 1000)
+p = plot_safe_set(model_mile, problem_gt_small, 1000)
 
 function plot_all_summary(model::GaussianProcessModel, problem_gt::GriddedProblem, iter; kwargs...)
     p1 = plot_test_stats(model, problem_gt.conf_threshold, iter; kwargs...)
@@ -167,14 +167,17 @@ function plot_all_summary(model::GaussianProcessModel, problem_gt::GriddedProble
     return plot(p1, p2, layout=(2, 1), size=(800, 900))
 end
 
-plot_all_summary(model_gp, problem_gt_small, 500)
-plot_all_summary(model_mile, problem_gt_small, 500)
+plot_all_summary(model_gp, problem_gt_small, 1000)
+plot_all_summary(model_mile, problem_gt_small, 1000)
 
 anim = @animate for iter in 1:5:500
     println(iter)
     plot_all_summary(model_mile, problem_gt_small, iter)
 end
 Plots.gif(anim, "figs/daa_gp.gif", fps=5)
+
+p = plot(collect(0:100:100000), ss_mile,
+    label="Random", legend=:topleft, linetype=:steppre, color=:gray, lw=2)
 
 
 p = plot(collect(0:100:50000), ss_random,

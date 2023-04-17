@@ -22,12 +22,12 @@ mutable struct PSpecBanditModel <: SetEstimationModel
     ℓs::Vector # Possible values of ℓ
     Ks::Matrix # Kernel matrix for all possible ℓs (length(grid)*nbins, length(grid))
     θs::Vector # Possible failure probabilities
-    function PSpecBanditModel(grid; ℓmin=1e-4, ℓmax=1e-2, nbins=100)
+    function PSpecBanditModel(grid; ℓmin=1e-4, ℓmax=1e-2, nbins=100, w=[1.0, 0.04])
         N = length(grid)
         widths = [cps[2] - cps[1] for cps in grid.cutPoints]
         min_vals = [cps[1] for cps in grid.cutPoints]
         max_vals = [cps[end] for cps in grid.cutPoints]
-        ℓs, Ks = get_Ks(grid; ℓmin=ℓmin, ℓmax=ℓmax, nbins=nbins)
+        ℓs, Ks = get_Ks(grid; w=w, ℓmin=ℓmin, ℓmax=ℓmax, nbins=nbins)
         Kmat = cat(Ks..., dims=1)
         curr_pspecℓs = ones(N, nbins) / nbins
         θs = collect(range(0, 1, length=nbins))
