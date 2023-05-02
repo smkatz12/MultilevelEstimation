@@ -32,6 +32,11 @@ function daa_pspec_bandit_model(nx₀, ny₀, nf; x₀min=1000, x₀max=3000, y�
     return PSpecBanditModel(grid, ℓmin=ℓmin, ℓmax=ℓmax, w=[4e-8, 1.0, 3.265e-5], nbins=nbins)
 end
 
+# Plot results
+ss_kb = BSON.load("examples/daa/results/sb_run1.bson")[:ss_kb]
+ss = [s[2] for s in ss_kb]
+plot(collect(0:50000), ss, legend=false)
+
 # Ground truth
 model_gt = BSON.load("examples/daa/results/ground_truth.bson")[:model]
 
@@ -150,7 +155,7 @@ nothing
 kernel_dkwucb_acquisition(model) = kernel_dkwucb_acquisition(model, problem_gt_small.pfail_threshold,
     problem_gt_small.conf_threshold, rand_argmax=true, buffer=0.0)
 reset!(kb_model)
-ss_kb = run_estimation!(kb_model, problem_gt_small, kernel_dkwucb_acquisition, 5000,
+ss_kb = run_estimation!(kb_model, problem_gt_small, kernel_dkwucb_acquisition, 10,
     tuple_return=true)
 
 ss_k = [s[2] for s in ss_kb]
