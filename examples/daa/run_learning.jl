@@ -55,3 +55,19 @@ reset!(kb_model)
 println("Running estimation...")
 ss_kb = run_estimation!(kb_model, problem_gt_small, kernel_dkwucb_acquisition, 100000,
     tuple_return=true)
+
+function get_rates(model)
+    is_safe = falses(length(model.grid))
+    for i = 1:length(model.grid)
+        conf_ind = findfirst(cumsum(model.θdists[i, :]) .> 0.95)
+        pfail_ind = findfirst(model.θs .>= 0.3)
+        is_safe[i] = conf_ind ≤ pfail_ind
+    end
+
+    FN_inds = findall(.!is_safe .& problem_gt_small.is_safe)
+    FP_inds = findall(is_safe .& .!problem_gt_small.is_safe)
+
+    return length(FN_inds), length(FP_inds)
+end
+
+FNs, FPs = get_rates(kb_model)
